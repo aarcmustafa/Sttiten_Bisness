@@ -27,7 +27,6 @@ class StittenStoresApp extends StatelessWidget {
           elevation: 0,
         )
       ),
-      // إعدادات اللغة العربية ودعم الرزنامة (Date Picker)
       locale: const Locale('ar', 'AE'),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -93,10 +92,8 @@ class StoreProvider with ChangeNotifier {
   List<DailySale> sales = [];
   List<Customer> customers = [];
   
-  // أول يوم من الشهر لعمليات الصندوق
   DateTime boxStartDate = DateTime(DateTime.now().year, DateTime.now().month, 1); 
 
-  // --- قسم الموردين ---
   void addSupplier(String name, String phone) {
     suppliers.add(Supplier(id: DateTime.now().toString(), name: name, phone: phone, startDate: DateTime.now()));
     notifyListeners();
@@ -109,7 +106,6 @@ class StoreProvider with ChangeNotifier {
   }
 
   void cleanOldInvoices() {
-    // حذف يدوياً وتلقائياً للفواتير التي تجاوزت شهرين (60 يوم)
     final twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
     for (var supplier in suppliers) {
       supplier.invoices.removeWhere((inv) => inv.date.isBefore(twoMonthsAgo));
@@ -117,7 +113,6 @@ class StoreProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- قسم المبيعات ---
   void addDailySale(double amount) {
     sales.add(DailySale(date: DateTime.now(), cashAmount: amount));
     notifyListeners();
@@ -137,7 +132,6 @@ class StoreProvider with ChangeNotifier {
     return credit;
   }
 
-  // --- قسم الكريدي ---
   void addCustomer(String name, String phone, bool isEmployee, DateTime? startDate) {
     customers.add(Customer(id: DateTime.now().toString(), name: name, phone: phone, isEmployee: isEmployee, monthStartDate: startDate));
     notifyListeners();
@@ -154,16 +148,13 @@ class StoreProvider with ChangeNotifier {
     double totalPurchases = customer.purchases.fold(0, (sum, item) => sum + item.amount);
     double remaining = totalPurchases - paidAmount;
     
-    // تصفير المشتريات السابقة
     customer.purchases.clear();
-    // ترحيل الباقي للشهر الجديد
     if (remaining > 0) {
       customer.purchases.add(Purchase(date: DateTime.now(), amount: remaining));
     }
     notifyListeners();
   }
 
-  // التنبيهات: الموظفون الذين حان أجل تخليصهم (مر شهر 30 يوما)
   List<Customer> get alertCustomers {
     return customers.where((c) {
       if (!c.isEmployee || c.monthStartDate == null) return false;
@@ -171,19 +162,16 @@ class StoreProvider with ChangeNotifier {
     }).toList();
   }
 
-  // --- قسم الصندوق (الأرباح والخسائر) ---
   void setBoxStartDate(DateTime date) {
     boxStartDate = date;
     notifyListeners();
   }
 
   double get totalMonthlySales {
-    // جمع مبيعات الشهر بناء على تاريخ بداية الصندوق
     return sales.where((s) => s.date.isAfter(boxStartDate) || isSameDay(s.date, boxStartDate)).fold(0, (sum, item) => sum + item.cashAmount);
   }
 
   double get totalMonthlyCosts {
-    // جمع تكاليف الموردين
     double cost = 0;
     for (var s in suppliers) {
       cost += s.invoices.where((inv) => inv.date.isAfter(boxStartDate) || isSameDay(inv.date, boxStartDate)).fold(0, (sum, item) => sum + item.paidAmount);
@@ -446,7 +434,7 @@ class SalesScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
               onPressed: () => _showAddCashSaleDialog(context),
               icon: const Icon(Icons.attach_money),
-              label: const Text('إضافة مبيعات نقداً (يسجل التاريخ آلياً)', style: TextStyle(fontSize: 16)),
+              label: const Text('إضافة مبيعات نقداً', style: TextStyle(fontSize: 16)),
             )
           ],
         ),
@@ -477,7 +465,7 @@ class SalesScreen extends StatelessWidget {
 }
 
 // ------------------------------------------
-// شاشة الكريدي والزبائن (مع الرزنامة)
+// شاشة الكريدي والزبائن
 // ------------------------------------------
 class CreditScreen extends StatelessWidget {
   const CreditScreen({Key? key}) : super(key: key);
@@ -546,4 +534,15 @@ class CreditScreen extends StatelessWidget {
                   ),
                   TextField(decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
                   TextField(decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
-              
+                  const SizedBox(height: 15),
+                  if (isEmployee)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      onPressed: () async {
+                        DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                
