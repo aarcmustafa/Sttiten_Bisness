@@ -22,12 +22,14 @@ jobs:
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          flutter-version: '3.19.0'
           channel: 'stable'
-          cache: true
+          cache: false
 
-      - name: Install Dependencies
-        run: flutter pub get
+      - name: Clean Flutter & Get Dependencies
+        run: |
+          flutter clean
+          flutter pub get
 
       - name: Create Android Project Files
         run: flutter create . --org com.stitten.stores --platforms=android
