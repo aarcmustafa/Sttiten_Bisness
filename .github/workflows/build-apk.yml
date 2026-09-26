@@ -22,7 +22,7 @@ jobs:
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.5'   # تم ضبطه على الإصدار الذي طلبه الفلوتر تماماً
+          flutter-version: '3.47.5'
           channel: 'stable'
           cache: false
 
@@ -32,12 +32,11 @@ jobs:
       - name: Create Android Project Files
         run: flutter create . --org com.stitten.stores --platforms=android
 
-      - name: Build Release APK
-        run: flutter build apk --release --split-per-abi
+      - name: Build APK (Release)
+        run: flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          
+          path: build/app/outputs/flutter-apk/*.apk
