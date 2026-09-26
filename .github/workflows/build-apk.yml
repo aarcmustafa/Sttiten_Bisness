@@ -22,11 +22,11 @@ jobs:
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.47.5'   # تم تحديثه ليطابق متطلبات الـ SDK الحديثة تماماً
           channel: 'stable'
           cache: false
 
-      - name: Clean Flutter & Get Dependencies
+      - name: Clean & Get Dependencies
         run: |
           flutter clean
           flutter pub get
