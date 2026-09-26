@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
   runApp(
@@ -17,6 +18,7 @@ class StittenStoresApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Stitten Stores 2.0',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
         fontFamily: 'Arial',
@@ -25,14 +27,16 @@ class StittenStoresApp extends StatelessWidget {
           elevation: 0,
         )
       ),
-      // لدعم اللغة العربية من اليمين لليسار
+      // إعدادات اللغة العربية ودعم الرزنامة (Date Picker)
       locale: const Locale('ar', 'AE'),
-      builder: (context, child) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: child!,
-        );
-      },
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ar', 'AE'),
+      ],
       home: const HomeScreen(),
     );
   }
@@ -105,7 +109,7 @@ class StoreProvider with ChangeNotifier {
   }
 
   void cleanOldInvoices() {
-    // حذف يدوياً وتلقائياً للفواتير التي تجاوزت شهرين
+    // حذف يدوياً وتلقائياً للفواتير التي تجاوزت شهرين (60 يوم)
     final twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
     for (var supplier in suppliers) {
       supplier.invoices.removeWhere((inv) => inv.date.isBefore(twoMonthsAgo));
@@ -159,7 +163,7 @@ class StoreProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // التنبيهات: الموظفون الذين حان أجل تخليصهم (مر شهر)
+  // التنبيهات: الموظفون الذين حان أجل تخليصهم (مر شهر 30 يوما)
   List<Customer> get alertCustomers {
     return customers.where((c) {
       if (!c.isEmployee || c.monthStartDate == null) return false;
@@ -323,10 +327,8 @@ class SupplierDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // نعيد قراءة بيانات المورد لضمان التحديث اللحظي
     var provider = context.watch<StoreProvider>();
     var currentSupplier = provider.suppliers.firstWhere((s) => s.id == supplier.id);
-    
     double totalDebt = currentSupplier.invoices.fold(0, (sum, inv) => sum + inv.remainingDebt);
 
     return Scaffold(
@@ -544,8 +546,4 @@ class CreditScreen extends StatelessWidget {
                   ),
                   TextField(decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
                   TextField(decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
-                  const SizedBox(height: 15),
-                  // إظهار الرزنامة فقط للموظف
-                  if (isEmployee)
-                    OutlinedButton.icon(
-                      icon:
+              
