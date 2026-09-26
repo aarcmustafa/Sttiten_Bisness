@@ -22,14 +22,11 @@ jobs:
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.5'   # تم تحديثه ليطابق متطلبات الـ SDK الحديثة تماماً
+          flutter-version: '3.19.6'   # إصدار مستقر ومضمون ليتوافق مع الحزم الحديثة
           channel: 'stable'
-          cache: false
 
-      - name: Clean & Get Dependencies
-        run: |
-          flutter clean
-          flutter pub get
+      - name: Get Dependencies
+        run: flutter pub get
 
       - name: Create Android Project Files
         run: flutter create . --org com.stitten.stores --platforms=android
