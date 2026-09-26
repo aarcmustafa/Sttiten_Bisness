@@ -1,227 +1,551 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 
-void main() async {
-  // تهيئة نظام Flutter وقاعدة البيانات المحلية Hive
-  WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  
-  // فتح صناديق التخزين (Boxes) لكل قسم لحفظ البيانات بشكل منفصل
-  await Hive.openBox('sales_box');
-  await Hive.openBox('customers_box');
-  await Hive.openBox('purchases_box');
-  await Hive.openBox('suppliers_box');
-
-  runApp(const MyApp());
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => StoreProvider()..cleanOldInvoices(),
+      child: const StittenStoresApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class StittenStoresApp extends StatelessWidget {
+  const StittenStoresApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'محلات استيتن',
-      debugShowCheckedModeBanner: false,
+      title: 'Stitten Stores 2.0',
       theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E88E5),
-          brightness: Brightness.light,
-        ),
-        fontFamily: 'Roboto',
+        primarySwatch: Colors.blue,
+        fontFamily: 'Arial',
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+        )
       ),
-      home: const MainNavigationScreen(),
+      // لدعم اللغة العربية من اليمين لليسار
+      locale: const Locale('ar', 'AE'),
+      builder: (context, child) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: child!,
+        );
+      },
+      home: const HomeScreen(),
     );
   }
 }
 
-class SectionConfig {
-  final String id;
-  final String title;
-  final IconData icon;
-  final String boxName;
-  final Color themeColor;
-
-  const SectionConfig({
-    required this.id,
-    required this.title,
-    required this.icon,
-    required this.boxName,
-    required this.themeColor,
-  });
+// ==========================================
+// 1. MODELS (هيكلة البيانات)
+// ==========================================
+class Supplier {
+  String id;
+  String name;
+  String phone;
+  DateTime startDate;
+  List<Invoice> invoices = [];
+  Supplier({required this.id, required this.name, required this.phone, required this.startDate});
 }
 
-class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
-
-  @override
-  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+class Invoice {
+  String id;
+  DateTime date;
+  double totalAmount;
+  double paidAmount;
+  Invoice({required this.id, required this.date, required this.totalAmount, required this.paidAmount});
+  double get remainingDebt => totalAmount - paidAmount;
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _selectedIndex = 0;
+class DailySale {
+  DateTime date;
+  double cashAmount;
+  DailySale({required this.date, required this.cashAmount});
+}
 
-  static const String _sampleSvgLogo = '''
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <circle cx="50" cy="50" r="45" fill="#1E88E5" />
-  <path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-</svg>
-''';
+class Customer {
+  String id;
+  String name;
+  String phone;
+  bool isEmployee;
+  DateTime? monthStartDate;
+  List<Purchase> purchases = [];
+  Customer({required this.id, required this.name, required this.phone, required this.isEmployee, this.monthStartDate});
+}
 
-  final List<SectionConfig> _sections = [
-    const SectionConfig(id: 'sales', title: 'المبيعات', icon: Icons.dashboard_rounded, boxName: 'sales_box', themeColor: Color(0xFF1E88E5)),
-    const SectionConfig(id: 'customers', title: 'ديون الزبائن', icon: Icons.people_rounded, boxName: 'customers_box', themeColor: Color(0xFF43A047)),
-    const SectionConfig(id: 'purchases', title: 'المشتريات', icon: Icons.receipt_long_rounded, boxName: 'purchases_box', themeColor: Color(0xFFFB8C00)),
-    const SectionConfig(id: 'suppliers', title: 'الموردون', icon: Icons.local_shipping_rounded, boxName: 'suppliers_box', themeColor: Color(0xFF8E24AA)),
-  ];
+class Purchase {
+  DateTime date;
+  double amount;
+  Purchase({required this.date, required this.amount});
+}
+
+// ==========================================
+// 2. STATE MANAGEMENT (المنطق والعمليات الحسابية)
+// ==========================================
+class StoreProvider with ChangeNotifier {
+  List<Supplier> suppliers = [];
+  List<DailySale> sales = [];
+  List<Customer> customers = [];
+  
+  // أول يوم من الشهر لعمليات الصندوق
+  DateTime boxStartDate = DateTime(DateTime.now().year, DateTime.now().month, 1); 
+
+  // --- قسم الموردين ---
+  void addSupplier(String name, String phone) {
+    suppliers.add(Supplier(id: DateTime.now().toString(), name: name, phone: phone, startDate: DateTime.now()));
+    notifyListeners();
+  }
+
+  void addInvoiceToSupplier(String supplierId, double total, double paid) {
+    var supplier = suppliers.firstWhere((s) => s.id == supplierId);
+    supplier.invoices.add(Invoice(id: DateTime.now().toString(), date: DateTime.now(), totalAmount: total, paidAmount: paid));
+    notifyListeners();
+  }
+
+  void cleanOldInvoices() {
+    // حذف يدوياً وتلقائياً للفواتير التي تجاوزت شهرين
+    final twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
+    for (var supplier in suppliers) {
+      supplier.invoices.removeWhere((inv) => inv.date.isBefore(twoMonthsAgo));
+    }
+    notifyListeners();
+  }
+
+  // --- قسم المبيعات ---
+  void addDailySale(double amount) {
+    sales.add(DailySale(date: DateTime.now(), cashAmount: amount));
+    notifyListeners();
+  }
+
+  double getTodayCashSales() {
+    DateTime today = DateTime.now();
+    return sales.where((s) => isSameDay(s.date, today)).fold(0, (sum, item) => sum + item.cashAmount);
+  }
+
+  double getTodayCreditSales() {
+    DateTime today = DateTime.now();
+    double credit = 0;
+    for (var c in customers) {
+      credit += c.purchases.where((p) => isSameDay(p.date, today)).fold(0, (sum, item) => sum + item.amount);
+    }
+    return credit;
+  }
+
+  // --- قسم الكريدي ---
+  void addCustomer(String name, String phone, bool isEmployee, DateTime? startDate) {
+    customers.add(Customer(id: DateTime.now().toString(), name: name, phone: phone, isEmployee: isEmployee, monthStartDate: startDate));
+    notifyListeners();
+  }
+
+  void addPurchaseToCustomer(String customerId, double amount) {
+    var customer = customers.firstWhere((c) => c.id == customerId);
+    customer.purchases.add(Purchase(date: DateTime.now(), amount: amount));
+    notifyListeners();
+  }
+
+  void settleMonthlyCustomer(String customerId, double paidAmount) {
+    var customer = customers.firstWhere((c) => c.id == customerId);
+    double totalPurchases = customer.purchases.fold(0, (sum, item) => sum + item.amount);
+    double remaining = totalPurchases - paidAmount;
+    
+    // تصفير المشتريات السابقة
+    customer.purchases.clear();
+    // ترحيل الباقي للشهر الجديد
+    if (remaining > 0) {
+      customer.purchases.add(Purchase(date: DateTime.now(), amount: remaining));
+    }
+    notifyListeners();
+  }
+
+  // التنبيهات: الموظفون الذين حان أجل تخليصهم (مر شهر)
+  List<Customer> get alertCustomers {
+    return customers.where((c) {
+      if (!c.isEmployee || c.monthStartDate == null) return false;
+      return DateTime.now().difference(c.monthStartDate!).inDays >= 30;
+    }).toList();
+  }
+
+  // --- قسم الصندوق (الأرباح والخسائر) ---
+  void setBoxStartDate(DateTime date) {
+    boxStartDate = date;
+    notifyListeners();
+  }
+
+  double get totalMonthlySales {
+    // جمع مبيعات الشهر بناء على تاريخ بداية الصندوق
+    return sales.where((s) => s.date.isAfter(boxStartDate) || isSameDay(s.date, boxStartDate)).fold(0, (sum, item) => sum + item.cashAmount);
+  }
+
+  double get totalMonthlyCosts {
+    // جمع تكاليف الموردين
+    double cost = 0;
+    for (var s in suppliers) {
+      cost += s.invoices.where((inv) => inv.date.isAfter(boxStartDate) || isSameDay(inv.date, boxStartDate)).fold(0, (sum, item) => sum + item.paidAmount);
+    }
+    return cost;
+  }
+
+  bool isSameDay(DateTime d1, DateTime d2) {
+    return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
+  }
+}
+
+// ==========================================
+// 3. UI SCREENS (الواجهات)
+// ==========================================
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final currentSection = _sections[_selectedIndex];
-
+    var alerts = context.watch<StoreProvider>().alertCustomers;
+    
     return Scaffold(
-      appBar: AppBar(
-        title: Text(currentSection.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: currentSection.themeColor,
-        foregroundColor: Colors.white,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SvgPicture.string(_sampleSvgLogo, width: 32, height: 32),
+      appBar: AppBar(title: const Text('Stitten Stores 2.0')),
+      body: Column(
+        children: [
+          if (alerts.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.red.shade100,
+              child: Text(
+                'تنبيه: يوجد ${alerts.length} موظف حان وقت تخليصهم!', 
+                textAlign: TextAlign.center, 
+                style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)
+              ),
+            ),
+          Expanded(
+            child: GridView.count(
+              crossAxisCount: 2,
+              padding: const EdgeInsets.all(16),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              children: [
+                _buildMenuBtn(context, 'الموردين', const SuppliersScreen(), Icons.local_shipping),
+                _buildMenuBtn(context, 'المبيعات', const SalesScreen(), Icons.point_of_sale),
+                _buildMenuBtn(context, 'الكريدي والزبائن', const CreditScreen(), Icons.people),
+                _buildMenuBtn(context, 'الصندوق (أرباح)', const BoxScreen(), Icons.account_balance_wallet),
+              ],
+            ),
           ),
         ],
       ),
-      // IndexedStack يحافظ على حالة الشاشات ويمنع السحب الأفقي
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _sections.map((sec) => SectionView(config: sec)).toList(),
+    );
+  }
+
+  Widget _buildMenuBtn(BuildContext ctx, String title, Widget screen, IconData icon) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: _sections.map((sec) {
-          return NavigationDestination(
-            icon: Icon(sec.icon),
-            label: sec.title,
-          );
-        }).toList(),
+      onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => screen)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 40), 
+          const SizedBox(height: 10), 
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center)
+        ],
       ),
     );
   }
 }
 
-class SectionView extends StatelessWidget {
-  final SectionConfig config;
-
-  const SectionView({super.key, required this.config});
+// ------------------------------------------
+// شاشة الموردين
+// ------------------------------------------
+class SuppliersScreen extends StatelessWidget {
+  const SuppliersScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: Hive.box(config.boxName).listenable(),
-      builder: (context, Box box, _) {
-        final items = box.values.toList();
+    var provider = context.watch<StoreProvider>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('الموردين')),
+      body: ListView.builder(
+        itemCount: provider.suppliers.length,
+        itemBuilder: (ctx, i) {
+          var s = provider.suppliers[i];
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: ListTile(
+              title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(s.phone),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SupplierDetailsScreen(supplier: s))),
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddSupplierDialog(context),
+        label: const Text('إضافة مورد'),
+        icon: const Icon(Icons.add),
+      ),
+    );
+  }
 
-        return Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16.0),
-              color: config.themeColor.withOpacity(0.1),
-              child: Row(
-                children: [
-                  SvgPicture.string('''
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <circle cx="50" cy="50" r="45" fill="${_colorToHex(config.themeColor)}" />
-  <path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-</svg>
-''', width: 40, height: 40),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+  void _showAddSupplierDialog(BuildContext context) {
+    String name = '', phone = '';
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('إضافة مورد جديد'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
+          TextField(decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          if(name.isNotEmpty) {
+            context.read<StoreProvider>().addSupplier(name, phone);
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('إضافة'))
+      ],
+    ));
+  }
+}
+
+// ------------------------------------------
+// تفاصيل المورد (الفواتير)
+// ------------------------------------------
+class SupplierDetailsScreen extends StatelessWidget {
+  final Supplier supplier;
+  const SupplierDetailsScreen({Key? key, required this.supplier}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // نعيد قراءة بيانات المورد لضمان التحديث اللحظي
+    var provider = context.watch<StoreProvider>();
+    var currentSupplier = provider.suppliers.firstWhere((s) => s.id == supplier.id);
+    
+    double totalDebt = currentSupplier.invoices.fold(0, (sum, inv) => sum + inv.remainingDebt);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('فواتير: ${currentSupplier.name}')),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            color: Colors.grey.shade200,
+            child: Column(
+              children: [
+                const Text('إجمالي الدين الباقي على التاجر', style: TextStyle(fontSize: 16)),
+                Text(
+                  totalDebt.toStringAsFixed(2), 
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: totalDebt > 0 ? Colors.red : Colors.green)
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: currentSupplier.invoices.length,
+              itemBuilder: (ctx, i) {
+                var inv = currentSupplier.invoices[i];
+                Color numColor = inv.remainingDebt <= 0 ? Colors.green : Colors.red;
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: ListTile(
+                    title: Text('التاريخ: ${inv.date.toString().substring(0,10)}'),
+                    subtitle: Text('الكلية: ${inv.totalAmount} | المدفوعة: ${inv.paidAmount}'),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('قسم: ${config.title}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: config.themeColor)),
-                        Text('إجمالي العناصر المحفوظة: ${items.length}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        const Text('الباقي'),
+                        Text('${inv.remainingDebt}', style: TextStyle(color: numColor, fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: () => _addNewItemDialog(context, box),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('إضافة جديد'),
-                    style: ElevatedButton.styleFrom(backgroundColor: config.themeColor, foregroundColor: Colors.white),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
-            Expanded(
-              child: items.isEmpty
-                  ? const Center(child: Text('لا توجد بيانات محفوظة حالياً. اضغط على إضافة جديد.'))
-                  : ListView.builder(
-                      itemCount: items.length,
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      itemBuilder: (context, index) {
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: config.themeColor.withOpacity(0.2),
-                              child: Text('${index + 1}', style: TextStyle(color: config.themeColor)),
-                            ),
-                            title: Text(items[index].toString()),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => box.deleteAt(index), // حذف العنصر نهائياً من الذاكرة المحلية
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _addNewItemDialog(BuildContext context, Box box) {
-    final TextEditingController controller = TextEditingController();
-    showDialog(
-      context: FlutterLogo().runtimeType == 0 ? context : context, // Simple Dialog wrapper
-      builder: (context) => AlertDialog(
-        title: Text('إضافة بيانات جديدة لـ ${config.title}'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'اكتب تفاصيل البيانات هنا...'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                box.add(controller.text.trim()); // حفظ البيانات محلياً بشكل دائم
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('حفظ'),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddInvoiceDialog(context),
+        label: const Text('إضافة فاتورة'),
+        icon: const Icon(Icons.receipt),
       ),
     );
   }
 
-  String _colorToHex(Color color) {
-    return '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
+  void _showAddInvoiceDialog(BuildContext context) {
+    double total = 0, paid = 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('فاتورة جديدة'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('يسجل التاريخ آلياً', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          TextField(decoration: const InputDecoration(labelText: 'قيمة الفاتورة الكلية'), keyboardType: TextInputType.number, onChanged: (v) => total = double.tryParse(v) ?? 0),
+          TextField(decoration: const InputDecoration(labelText: 'القيمة المدفوعة'), keyboardType: TextInputType.number, onChanged: (v) => paid = double.tryParse(v) ?? 0),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          context.read<StoreProvider>().addInvoiceToSupplier(supplier.id, total, paid);
+          Navigator.pop(ctx);
+        }, child: const Text('حفظ'))
+      ],
+    ));
   }
 }
+
+// ------------------------------------------
+// شاشة المبيعات
+// ------------------------------------------
+class SalesScreen extends StatelessWidget {
+  const SalesScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var provider = context.watch<StoreProvider>();
+    double todayCash = provider.getTodayCashSales();
+    double todayCredit = provider.getTodayCreditSales();
+    double totalToday = todayCash + todayCredit;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('المبيعات اليومية')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              color: Colors.blue.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const Text('حوصلة مبيعات اليوم', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Divider(),
+                    Text('نقداً: $todayCash'),
+                    Text('بالكريدي: $todayCredit'),
+                    const SizedBox(height: 10),
+                    Text('المجموع الكلي: $totalToday', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+              onPressed: () => _showAddCashSaleDialog(context),
+              icon: const Icon(Icons.attach_money),
+              label: const Text('إضافة مبيعات نقداً (يسجل التاريخ آلياً)', style: TextStyle(fontSize: 16)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddCashSaleDialog(BuildContext context) {
+    double amount = 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('إضافة مبيعات نقدية'),
+      content: TextField(
+        decoration: const InputDecoration(labelText: 'القيمة'),
+        keyboardType: TextInputType.number,
+        onChanged: (v) => amount = double.tryParse(v) ?? 0,
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          if(amount > 0) {
+            context.read<StoreProvider>().addDailySale(amount);
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('إضافة'))
+      ],
+    ));
+  }
+}
+
+// ------------------------------------------
+// شاشة الكريدي والزبائن (مع الرزنامة)
+// ------------------------------------------
+class CreditScreen extends StatelessWidget {
+  const CreditScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var provider = context.watch<StoreProvider>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('الكريدي والزبائن')),
+      body: ListView.builder(
+        itemCount: provider.customers.length,
+        itemBuilder: (ctx, i) {
+          var c = provider.customers[i];
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: ListTile(
+              leading: Icon(c.isEmployee ? Icons.badge : Icons.person),
+              title: Text('${c.name} ${c.isEmployee ? "(موظف)" : "(آخرون)"}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(c.phone),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerDetailsScreen(customer: c))),
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddCustomerDialog(context),
+        label: const Text('إضافة زبون'),
+        icon: const Icon(Icons.person_add),
+      ),
+    );
+  }
+
+  void _showAddCustomerDialog(BuildContext context) {
+    String name = '', phone = '';
+    bool isEmployee = false;
+    DateTime? selectedDate;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('إضافة زبون جديد'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: isEmployee ? Colors.blue : Colors.grey.shade400),
+                        onPressed: () => setState(() => isEmployee = true),
+                        child: const Text('موظف'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: !isEmployee ? Colors.blue : Colors.grey.shade400),
+                        onPressed: () => setState(() {
+                          isEmployee = false;
+                          selectedDate = null;
+                        }),
+                        child: const Text('آخرون'),
+                      ),
+                    ],
+                  ),
+                  TextField(decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
+                  TextField(decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
+                  const SizedBox(height: 15),
+                  // إظهار الرزنامة فقط للموظف
+                  if (isEmployee)
+                    OutlinedButton.icon(
+                      icon:
