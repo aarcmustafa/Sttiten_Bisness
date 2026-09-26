@@ -1,4 +1,4 @@
-name: stitten_bisness
+name: sttiten_bisness
 description: A new Flutter project for Stitten Stores 2.0.
 
 publish_to: 'none' 
@@ -11,11 +11,11 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # حزمة دعم اللغة العربية (اليمين لليسار) للرزنامة
+  # حزمة دعم اللغة العربية للرزنامة
   flutter_localizations:
     sdk: flutter
 
-  # حزمة إدارة الحالة والعمليات الحسابية
+  # حزمة إدارة الحالة
   provider: ^6.1.2
 
 dev_dependencies:
