@@ -224,6 +224,19 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
           ),
+          // إضافة اسم المطور في أسفل الشاشة الرئيسية
+          Container(
+            padding: const EdgeInsets.all(12.0),
+            alignment: Alignment.center,
+            child: const Text(
+              'تطوير وتصميم: جلولي مصطفى',
+              style: TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -297,6 +310,246 @@ class SuppliersScreen extends StatelessWidget {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
         ElevatedButton(onPressed: () {
           if(name.isNotEmpty) {
+            context.read<StoreProvider>().addSupplier(name, phone);
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('إضافة'))
+      ],
+    ));
+  }
+}
+
+// ------------------------------------------
+// تفاصيل المورد (الفواتير)
+// ------------------------------------------
+class SupplierDetailsScreen extends StatelessWidget {
+  final Supplier supplier;
+  const SupplierDetailsScreen({Key? key, required this.supplier}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var provider = context.watch<StoreProvider>();
+    var currentSupplier = provider.suppliers.firstWhere((s) => s.id == supplier.id);
+    double totalDebt = currentSupplier.invoices.fold(0, (sum, inv) => sum + inv.remainingDebt);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('فواتير: ${currentSupplier.name}')),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            color: Colors.grey.shade200,
+            child: Column(
+              children: [
+                const Text('إجمالي الدين الباقي على التاجر', style: TextStyle(fontSize: 16)),
+                Text(
+                  totalDebt.toStringAsFixed(2), 
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: totalDebt > 0 ? Colors.red : Colors.green)
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: currentSupplier.invoices.length,
+              itemBuilder: (ctx, i) {
+                var inv = currentSupplier.invoices[i];
+                Color numColor = inv.remainingDebt <= 0 ? Colors.green : Colors.red;
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: ListTile(
+                    title: Text('التاريخ: ${inv.date.toString().substring(0,10)}'),
+                    subtitle: Text('الكلية: ${inv.totalAmount} | المدفوعة: ${inv.paidAmount}'),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('الباقي'),
+                        Text('${inv.remainingDebt}', style: TextStyle(color: numColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddInvoiceDialog(context),
+        label: const Text('إضافة فاتورة'),
+        icon: const Icon(Icons.receipt),
+      ),
+    );
+  }
+
+  void _showAddInvoiceDialog(BuildContext context) {
+    double total = 0, paid = 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('فاتورة جديدة'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('يسجل التاريخ آلياً', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          TextField(decoration: const InputDecoration(labelText: 'قيمة الفاتورة الكلية'), keyboardType: TextInputType.number, onChanged: (v) => total = double.tryParse(v) ?? 0),
+          TextField(decoration: const InputDecoration(labelText: 'القيمة المدفوعة'), keyboardType: TextInputType.number, onChanged: (v) => paid = double.tryParse(v) ?? 0),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          context.read<StoreProvider>().addInvoiceToSupplier(supplier.id, total, paid);
+          Navigator.pop(ctx);
+        }, child: const Text('حفظ'))
+      ],
+    ));
+  }
+}
+
+// ------------------------------------------
+// شاشة المبيعات
+// ------------------------------------------
+class SalesScreen extends StatelessWidget {
+  const SalesScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var provider = context.watch<StoreProvider>();
+    double todayCash = provider.getTodayCashSales();
+    double todayCredit = provider.getTodayCreditSales();
+    double totalToday = todayCash + todayCredit;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('المبيعات اليومية')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              color: Colors.blue.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const Text('حوصلة مبيعات اليوم', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Divider(),
+                    Text('نقداً: $todayCash'),
+                    Text('بالكريدي: $todayCredit'),
+                    const SizedBox(height: 10),
+                    Text('المجموع الكلي: $totalToday', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+              onPressed: () => _showAddCashSaleDialog(context),
+              icon: const Icon(Icons.attach_money),
+              label: const Text('إضافة مبيعات نقداً', style: TextStyle(fontSize: 16)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddCashSaleDialog(BuildContext context) {
+    double amount = 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('إضافة مبيعات نقدية'),
+      content: TextField(
+        decoration: const InputDecoration(labelText: 'القيمة'),
+        keyboardType: TextInputType.number,
+        onChanged: (v) => amount = double.tryParse(v) ?? 0,
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          if(amount > 0) {
+            context.read<StoreProvider>().addDailySale(amount);
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('إضافة'))
+      ],
+    ));
+  }
+}
+
+// ------------------------------------------
+// شاشة الكريدي والزبائن
+// ------------------------------------------
+class CreditScreen extends StatelessWidget {
+  const CreditScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var provider = context.watch<StoreProvider>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('الكريدي والزبائن')),
+      body: ListView.builder(
+        itemCount: provider.customers.length,
+        itemBuilder: (ctx, i) {
+          var c = provider.customers[i];
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: ListTile(
+              leading: Icon(c.isEmployee ? Icons.badge : Icons.person),
+              title: Text('${c.name} ${c.isEmployee ? "(موظف)" : "(آخرون)"}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(c.phone),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerDetailsScreen(customer: c))),
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddCustomerDialog(context),
+        label: const Text('إضافة زبون'),
+        icon: const Icon(Icons.person_add),
+      ),
+    );
+  }
+
+  void _showAddCustomerDialog(BuildContext context) {
+    String name = '', phone = '';
+    bool isEmployee = false;
+    DateTime? selectedDate;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('إضافة زبون جديد'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: isEmployee ? Colors.blue : Colors.grey.shade400),
+                        onPressed: () => setState(() => isEmployee = true),
+                        child: const Text('موظف'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: !isEmployee ? Colors.blue : Colors.grey.shade400),
+                        onPressed: () => setState(() {
+                          isEmployee = false;
+                          selectedDate = null;
+                        }),
+                        child: const Text('آخرون'),
+                      ),
+                    ],
+                  ),
+                  TextField(decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
+                  TextField(decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
+                  const SizedBox(height: 15),
+                  if (isEmployee)
+                    OutlinedButt     if(name.isNotEmpty) {
             context.read<StoreProvider>().addSupplier(name, phone);
             Navigator.pop(ctx);
           }
