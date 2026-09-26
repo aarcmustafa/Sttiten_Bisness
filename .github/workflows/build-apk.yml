@@ -22,15 +22,18 @@ jobs:
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x'
+          flutter-version: '3.13.0'
           channel: 'stable'
           cache: true
 
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Create Android Project Files
+        run: flutter create . --org com.stitten.stores --platforms=android
+
       - name: Build Release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
