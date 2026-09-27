@@ -1,4 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+void main() async {
+  // مكانها: أول سطر داخل دالة main لضمان عمل فلاتر بشكل سليم
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // تهيئة قاعدة بيانات Hive
+  await Hive.initFlutter();
+  
+  // فتح الصناديق الخاصة بالتخزين
+  await Hive.openBox('salesBox');
+  await Hive.openBox('suppliersBox');
+
+  runApp(const MyApp());
+}
+
+import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
