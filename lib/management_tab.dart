@@ -599,7 +599,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     ),
                   ],
                 ),
-                // 2. المبيعات النقدية (مع إمكانية التعديل والحذف)
+                // 2. المبيعات النقدية
                 Column(
                   children: [
                     Padding(
@@ -699,19 +699,40 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     )
                   ],
                 ),
-                // 4. الأرشيف (مقسّم حسب الأقسام)
+                // 4. الأرشيف (مقسّم حسب الأقسام مع ملاحظة الصلاحية)
                 DefaultTabController(
                   length: 3,
                   child: Column(
                     children: [
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'ملاحظة الصلاحية: يُحذف أرشيف الكريدي تلقائياً بعد 70 يوماً، بينما يحذف أرشيف الموردين والمبيعات بعد شهرين (60 يوماً).',
+                                style: TextStyle(color: Color(0xFF1E3A8A), fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const TabBar(
                         labelColor: Color(0xFF1E3A8A),
                         unselectedLabelColor: Colors.grey,
                         indicatorColor: Color(0xFF1E3A8A),
                         tabs: [
-                          Tab(text: 'أرشيف الموردين'),
-                          Tab(text: 'أرشيف المبيعات'),
-                          Tab(text: 'أرشيف الكريدي (70 يوماً)'),
+                          Tab(text: 'الموردين'),
+                          Tab(text: 'المبيعات'),
+                          Tab(text: 'الكريدي (70 يوماً)'),
                         ],
                       ),
                       Expanded(
@@ -743,7 +764,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                       ),
                                     ),
                                   ),
-                            // أرشيف الكريدي (يحذف تلقائياً بعد 70 يوماً)
+                            // أرشيف الكريدي
                             archiveCustomers.isEmpty
                                 ? const Center(child: Text('لا توجد عمليات مؤرشفة للكريدي', style: TextStyle(color: Colors.grey)))
                                 : ListView.builder(
