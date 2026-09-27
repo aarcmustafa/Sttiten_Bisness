@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'settings_page.dart'; // استيراد صفحة الإعدادات المنفصلة
 
 class ManagementTab extends StatefulWidget {
   const ManagementTab({Key? key}) : super(key: key);
@@ -9,12 +10,12 @@ class ManagementTab extends StatefulWidget {
 }
 
 class _ManagementTabState extends State<ManagementTab> {
-  bool isManualStartDate = false;
-  String manualStartDateStr = "2026-01-01";
-
-  // نظام الحماية معطل افتراضياً من البداية
+  // متغيرات النظام والإعدادات
   bool isSecurityEnabled = false;
   String securityPin = "1234";
+  bool isDarkMode = false;
+  bool isManualStartDate = false;
+  String manualStartDateStr = "2026-01-01";
 
   // متغيرات البحث والفلترة
   String salesSearchQuery = "";
@@ -403,112 +404,26 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  void _showSettingsDialog() {
-    final dateCtrl = TextEditingController(text: manualStartDateStr);
-    final pinCtrl = TextEditingController(text: securityPin);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('إعدادات التطبيق والأرشيف', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('🔒 نظام الحماية والأمان', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
-                  const SizedBox(height: 5),
-                  SwitchListTile(
-                    title: const Text('تفعيل قفل الحماية برمز سري'),
-                    subtitle: Text(isSecurityEnabled ? 'الحماية مفعلة' : 'غير مفعلة'),
-                    value: isSecurityEnabled,
-                    activeColor: const Color(0xFF0D9488),
-                    onChanged: (val) {
-                      setDialogState(() => isSecurityEnabled = val);
-                      setState(() {});
-                    },
-                  ),
-                  if (isSecurityEnabled) ...[
-                    TextField(
-                      controller: pinCtrl,
-                      keyboardType: TextInputType.number,
-                      obscureText: true,
-                      maxLength: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'إعداد/تغيير الرمز السري (4 أرقام)',
-                        prefixIcon: Icon(Icons.lock, color: Color(0xFF0D9488)),
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (val) => securityPin = val,
-                    ),
-                  ],
-                  const Divider(height: 25),
-                  const Text('⏱️ زمن تصفية العمليات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
-                  const SizedBox(height: 5),
-                  const Text(
-                    '• المبيعات النقدية: تصفية يومية يدوية (مع احتفاظ الحوصلة بكل العمليات الأبدية).\n'
-                    '• الموردين: أرشيف تلقائي لآخر 60 يوماً (شهرين).\n'
-                    '• الكريدي والديون: أرشيف تلقائي لآخر 70 يوماً.',
-                    style: TextStyle(color: Colors.black87, fontSize: 12.5, height: 1.4),
-                  ),
-                  const Divider(height: 25),
-                  const Text('📊 إعدادات الحوصلة المالية', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
-                  SwitchListTile(
-                    title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
-                    subtitle: Text(isManualStartDate ? 'مفعل ($manualStartDateStr)' : 'تلقائي (حسب الشهر الحالي)'),
-                    value: isManualStartDate,
-                    activeColor: const Color(0xFF0D9488),
-                    onChanged: (val) {
-                      setDialogState(() => isManualStartDate = val);
-                      setState(() {});
-                    },
-                  ),
-                  if (isManualStartDate) ...[
-                    const SizedBox(height: 5),
-                    TextField(
-                      controller: dateCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'تاريخ البداية (YYYY-MM-DD)', 
-                        prefixIcon: Icon(Icons.date_range, color: Color(0xFF0D9488)),
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (val) => manualStartDateStr = val,
-                    ),
-                  ],
-                  const Divider(height: 25),
-                  const Center(
-                    child: Column(
-                      children: [
-                        Text('ℹ️ حول التطبيق', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
-                        SizedBox(height: 4),
-                        Text('Stitten Business - ERP الإصدار: 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                        SizedBox(height: 2),
-                        Text('المطور: جلولي مصطفى', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
-              onPressed: () {
-                setState(() {});
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم حفظ الإعدادات بنجاح')),
-                );
-              },
-              child: const Text('حفظ وإغلاق', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          ],
+  // الانتقال إلى صفحة الإعدادات المنفصلة
+  void _openSettingsPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettingsPage(
+          initialSecurityEnabled: isSecurityEnabled,
+          initialPin: securityPin,
+          initialDarkMode: isDarkMode,
+          initialManualStartDate: isManualStartDate,
+          initialStartDateStr: manualStartDateStr,
+          onSave: (secEnabled, pin, darkMode, manualStart, startDate) {
+            setState(() {
+              isSecurityEnabled = secEnabled;
+              securityPin = pin;
+              isDarkMode = darkMode;
+              isManualStartDate = manualStart;
+              manualStartDateStr = startDate;
+            });
+          },
         ),
       ),
     );
@@ -574,7 +489,10 @@ class _ManagementTabState extends State<ManagementTab> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('الحوصلة المالية الشاملة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D9488))),
-                  IconButton(icon: const Icon(Icons.settings, size: 20, color: Colors.grey), onPressed: _showSettingsDialog)
+                  IconButton(
+                    icon: const Icon(Icons.settings, size: 20, color: Colors.grey), 
+                    onPressed: _openSettingsPage, // يفتح صفحة الإعدادات الجديدة
+                  )
                 ],
               ),
               const Divider(),
@@ -619,11 +537,13 @@ class _ManagementTabState extends State<ManagementTab> {
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: const Color(0xFF0D9488),
-          title: const Text('Stitten Business - إدارة المتجر'),
+          title: const Text('Stitten Business - إدارة المتجر', style: TextStyle(color: Colors.white)),
           bottom: const TabBar(
             indicatorColor: Colors.white,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
             tabs: [
-              Tab(icon: Icon(Icons.point_of_sale), text: 'المبيعات والحوصلة'),
+              Tab(icon: Icon(Icons.point_of_sale), text: 'المبيعات'),
               Tab(icon: Icon(Icons.local_shipping), text: 'الموردين'),
               Tab(icon: Icon(Icons.people), text: 'الكريدي'),
             ],
@@ -631,7 +551,7 @@ class _ManagementTabState extends State<ManagementTab> {
         ),
         body: TabBarView(
           children: [
-            // --- تبويب المبيعات (مع زر التصفية والأرشفة اليومية) ---
+            // --- 1. تبويب المبيعات ---
             Column(
               children: [
                 buildFinancialSummaryCard(),
@@ -701,7 +621,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الموردين (مع البحث وأرشيف 60 يوماً) ---
+            // --- 2. تبويب الموردين (مع البحث وأرشيف 60 يوماً) ---
             Column(
               children: [
                 Padding(
@@ -780,7 +700,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الكريدي (مع البحث، فلترة النوع، وأرشيف 70 يوماً) ---
+            // --- 3. تبويب الكريدي (مع البحث، الفلترة، وأرشيف 70 يوماً) ---
             Column(
               children: [
                 Padding(
