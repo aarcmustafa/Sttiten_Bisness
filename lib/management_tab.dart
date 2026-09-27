@@ -27,7 +27,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
   Future<void> _loadAllData() async {
     final prefs = await SharedPreferences.getInstance();
-    List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
+    List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? [])
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
     DateTime twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
     for (var sup in loadedSuppliers) {
       List invoices = sup['invoices'] ?? [];
@@ -168,7 +170,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                         margin: const EdgeInsets.only(bottom: 10),
                         child: ListTile(
                           title: Text('تاريخ الفاتورة: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(inv['date']))}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('الجمال: ${inv['total']} دج | المدفوع: ${inv['paid']} دج\nالباقي ديناً: ${inv['remaining']} دج'),
+                          subtitle: Text('الإجمالي: ${inv['total']} دج | المدفوع: ${inv['paid']} دج\nالباقي ديناً: ${inv['remaining']} دج'),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.red),
                             onPressed: () {
@@ -401,4 +403,4 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('مركز الإدارة والمب
+        title: const Text
