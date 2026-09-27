@@ -42,7 +42,7 @@ class _LockScreenState extends State<LockScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue,
+      backgroundColor: Colors.blueGrey,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
@@ -53,22 +53,23 @@ class _LockScreenState extends State<LockScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('قفل الحماية الآمن', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue)),
+                  const Icon(Icons.lock, size: 50, color: Colors.blue),
                   const SizedBox(height: 10),
-                  const Text('أدخل رمز الـ PIN الخاص بك'),
+                  const Text('Stitten Stores v2.0', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _pinController,
                     keyboardType: TextInputType.number,
                     maxLength: 4,
                     obscureText: true,
                     textAlign: TextAlign.center,
-                    decoration: const InputDecoration(hintText: '****'),
+                    decoration: const InputDecoration(hintText: 'أدخل رمز PIN'),
                   ),
                   const SizedBox(height: 15),
                   ElevatedButton(
                     onPressed: _verifyPin,
                     style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(45)),
-                    child: const Text('فتح التطبيق'),
+                    child: const Text('دخول'),
                   ),
                 ],
               ),
