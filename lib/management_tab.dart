@@ -26,7 +26,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
   Future<void> _loadAllData() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // تحميل الموردين وتنظيف الفواتير القديمة (أكثر من 60 يوم)
     List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     DateTime twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
     for (var sup in loadedSuppliers) {
@@ -42,7 +41,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     sales = (prefs.getStringList('sales_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     customers = (prefs.getStringList('customers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     
-    _saveAllData(); // حفظ بعد التنظيف
+    _saveAllData(); 
     setState(() {});
   }
 
@@ -54,7 +53,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     setState(() {});
   }
 
-  // --- قسم الموردين ---
   void _addSupplier() {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
@@ -151,7 +149,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     });
   }
 
-  // --- قسم المبيعات ---
   void _addDailySale() {
     final amountCtrl = TextEditingController();
     showDialog(context: context, builder: (ctx) => AlertDialog(
@@ -170,7 +167,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     ));
   }
 
-  // --- قسم الكريدي ---
   void _addCustomer(bool isEmployee) {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
@@ -182,17 +178,31 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'الاسم الكامل')),
           TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone),
+          const SizedBox(height: 15),
           if (isEmployee)
-            ListTile(
-              title: Text(startDate == null ? 'اختر تاريخ بداية الشهر' : DateFormat('yyyy-MM-dd').format(startDate!)),
-              trailing: const Icon(Icons.calendar_today),
-              onTap: () async {
-                DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030));
-                if (picked != null) setDialogState(() => startDate = picked);
+            ElevatedButton.icon(
+              icon: const Icon(Icons.calendar_month),
+              label: Text(startDate == null 
+                  ? 'اضغط لتحديد بداية الشهر' 
+                  : 'البداية: ${DateFormat('yyyy-MM-dd').format(startDate!)}'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade100, 
+                  foregroundColor: Colors.black),
+              onPressed: () async {
+                DateTime? picked = await showDatePicker(
+                  context: context, 
+                  initialDate: DateTime.now(), 
+                  firstDate: DateTime(2020), 
+                  lastDate: DateTime(2030)
+                );
+                if (picked != null) {
+                  setDialogState(() => startDate = picked);
+                }
               },
             )
         ]),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           ElevatedButton(onPressed: () {
             if (nameCtrl.text.isNotEmpty) {
               customers.add({
@@ -261,8 +271,8 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                             double paid = double.tryParse(payCtrl.text) ?? 0;
                             double remaining = totalOwed - paid;
                             setModalState(() {
-                              customers[index]['purchases'] = []; // مسح مشتريات الشهر
-                              customers[index]['rolledOverDebt'] = remaining; // ترحيل الباقي
+                              customers[index]['purchases'] = [];
+                              customers[index]['rolledOverDebt'] = remaining;
                             });
                             _saveAllData();
                             Navigator.pop(dCtx);
@@ -301,7 +311,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       body: TabBarView(
         controller: _tabController,
         children: [
-          // 1. الموردين
           Column(
             children: [
               Padding(
@@ -320,7 +329,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
               )
             ],
           ),
-          // 2. المبيعات
           Column(
             children: [
               Padding(
@@ -338,7 +346,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
               )
             ],
           ),
-          // 3. الكريدي
           Column(
             children: [
               Row(
