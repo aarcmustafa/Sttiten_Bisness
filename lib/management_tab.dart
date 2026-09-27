@@ -190,8 +190,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       },
     );
   }
-
-  void _addDailySale() {
+    void _addDailySale() {
     final amountCtrl = TextEditingController();
     showDialog(
       context: context,
@@ -395,12 +394,163 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       },
     );
   }
-
-  @override
+    @override
   Widget build(BuildContext context) {
     var filteredSuppliers = suppliers.where((s) => s['name'].toString().contains(searchQuery)).toList();
     var filteredCustomers = customers.where((c) => c['name'].toString().contains(searchQuery)).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text
+        title: const Text('مركز الإدارة والمبيعات'),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          tabs: const [
+            Tab(text: 'الموردين'),
+            Tab(text: 'المبيعات النقدية'),
+            Tab(text: 'حسابات الكريدي'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              onChanged: (val) => setState(() => searchQuery = val),
+              decoration: InputDecoration(
+                hintText: 'بحث سريع بالاسم...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // الموردين
+                ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: filteredSuppliers.length,
+                  itemBuilder: (ctx, i) => Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFF1E3A8A).withOpacity(0.1),
+                        child: const Icon(Icons.business, color: Color(0xFF1E3A8A)),
+                      ),
+                      title: Text(filteredSuppliers[i]['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(filteredSuppliers[i]['phone']),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _manageSupplierInvoices(suppliers.indexOf(filteredSuppliers[i])),
+                    ),
+                  ),
+                ),
+                // المبيعات النقدية
+                Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0D9488),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: _addDailySale,
+                          icon: const Icon(Icons.add_card, color: Colors.white),
+                          label: const Text('تسجيل مبيعات نقدية جديدة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: sales.length,
+                        itemBuilder: (ctx, i) => Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.monetization_on_rounded, color: Colors.green, size: 30),
+                            title: Text(DateFormat('yyyy-MM-dd').format(DateTime.parse(sales[i]['date']))),
+                            trailing: Text('${sales[i]['amount']} دج', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                          ),
+                        ),
+                      ),
+                    )
+                  ],
+                ),
+                // الكريدي
+                Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+                          onPressed: () => _addCustomer(true),
+                          icon: const Icon(Icons.badge, color: Colors.white),
+                          label: const Text('إضافة موظف', style: TextStyle(color: Colors.white)),
+                        ),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+                          onPressed: () => _addCustomer(false),
+                          icon: const Icon(Icons.person_add, color: Colors.white),
+                          label: const Text('إضافة زبون كريدي', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: filteredCustomers.length,
+                        itemBuilder: (ctx, i) {
+                          var cust = filteredCustomers[i];
+                          return Card(
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: cust['isEmployee'] ? Colors.orange.shade100 : Colors.blue.shade100,
+                                child: Icon(
+                                  cust['isEmployee'] ? Icons.badge : Icons.person,
+                                  color: cust['isEmployee'] ? Colors.orange.shade800 : Colors.blue.shade800,
+                                ),
+                              ),
+                              title: Text(cust['name'] + (cust['isEmployee'] ? ' (موظف)' : ''), style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: cust['isEmployee'] && cust['startDate'] != null 
+                                  ? Text('بداية الشهر: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(cust['startDate']))}') 
+                                  : Text(cust['phone']),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () => _manageCustomer(customers.indexOf(cust)),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF1E3A8A),
+        child: const Icon(Icons.add, color: Colors.white),
+        onPressed: () {
+          if (_tabController.index == 0) _addSupplier();
+          if (_tabController.index == 1) _addDailySale();
+          if (_tabController.index == 2) _addCustomer(false);
+        },
+      ),
+    );
+  }
+}
+
