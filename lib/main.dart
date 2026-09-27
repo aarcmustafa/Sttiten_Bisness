@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'management_tab.dart'; // سنقوم بتحديثه أيضاً
+import 'management_tab.dart';
 
-// ==========================================
-// الجزء الأول: نقطة البداية وتشغيل التطبيق (Main & Hive Init)
-// ==========================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // تهيئة تخزين Hive وفتح الصناديق الأساسية
+  // تهيئة تخزين Hive وفتح الصناديق الأساسية والأرشيف
   await Hive.initFlutter();
   await Hive.openBox('settingsBox');
   await Hive.openBox('salesBox');
@@ -18,9 +15,8 @@ void main() async {
 
   runApp(const StittenBusinessApp());
 }
-
 // ==========================================
-// الجزء الثاني: تطبيق الويدجت الرئيسي وإدارة الثيم (App Widget)
+// الجزء الثاني: التطبيق الرئيسي وإدارة الثيم (Dark/Light Mode)
 // ==========================================
 class StittenBusinessApp extends StatelessWidget {
   const StittenBusinessApp({Key? key}) : super(key: key);
@@ -30,7 +26,7 @@ class StittenBusinessApp extends StatelessWidget {
     var settingsBox = Hive.box('settingsBox');
     
     return ValueListenableBuilder(
-      listenable: settingsBox.listenable(),
+      valueListenable: settingsBox.listenable(), // ✅ تم التصحيح هنا ليتوافق مع Flutter
       builder: (context, Box box, _) {
         bool isDarkMode = box.get('isDarkMode', defaultValue: false);
         
@@ -41,7 +37,7 @@ class StittenBusinessApp extends StatelessWidget {
           theme: ThemeData(
             primarySwatch: Colors.teal,
             scaffoldBackgroundColor: Colors.grey[50],
-            fontFamily: 'Cairo', // أو الخط الافتراضي
+            fontFamily: 'Cairo',
           ),
           darkTheme: ThemeData.dark().copyWith(
             primaryColor: const Color(0xFF0D9488),
@@ -52,9 +48,8 @@ class StittenBusinessApp extends StatelessWidget {
     );
   }
 }
-
 // ==========================================
-// الجزء الثالث: الشاشة الجذرية مع حماية الأمان (Root Screen & Security)
+// الجزء الثالث: نظام الأمان وقفل الحماية بررمز سري
 // ==========================================
 class AppRootScreen extends StatefulWidget {
   const AppRootScreen({Key? key}) : super(key: key);
@@ -72,7 +67,7 @@ class _AppRootScreenState extends State<AppRootScreen> {
     bool isSecurityEnabled = settingsBox.get('isSecurityEnabled', defaultValue: false);
     String savedPin = settingsBox.get('pin', defaultValue: '0000');
 
-    // إذا كانت الحماية مفعلة ولم يتم إدخال الرمز بعد
+    // إذا كانت الحماية مفعلة ولم يتم إدخال الرمز الصحيح بعد
     if (isSecurityEnabled && !_isAuthenticated) {
       return Scaffold(
         backgroundColor: const Color(0xFF0D9488),
@@ -115,12 +110,11 @@ class _AppRootScreenState extends State<AppRootScreen> {
       );
     }
 
-    return const MainNavigationScreen();
+    return const ManagementTab();
   }
 }
-
 // ==========================================
-// الجزء الرابع: واجهة التنقل بين التبويبات (Bottom Navigation)
+// الجزء الرابع: واجهة التنقل والشاشة الرئيسية للتطبيق
 // ==========================================
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({Key? key}) : super(key: key);
@@ -132,32 +126,18 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  // قائمة التبويبات الرئيسية (يمكنك إضافة تبويبات المبيعات والديون هنا)
   final List<Widget> _tabs = [
-    const Center(child: Text('شاشة المبيعات النقدية', style: TextStyle(fontSize: 18))),
-    const Center(child: Text('شاشة الكريدي والديون', style: TextStyle(fontSize: 18))),
-    const ManagementTab(), // تبويب الإدارة والتحكم
+    const ManagementTab(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _tabs[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        selectedItemColor: const Color(0xFF0D9488),
-        onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.point_of_sale), label: 'المبيعات'),
-          BottomNavigationBarItem(icon: Icon(Icons.book), label: 'الكريدي'),
-          BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: 'الإدارة'),
-        ],
-      ),
     );
   }
 }
-
 // ==========================================
-// الجزء الخامس: مساعدات عامة للتطبيق (Helpers)
+// الجزء الخامس: دوال مساعدة إضافية وهيكل الدعم العام
 // ==========================================
-// يمكن وضع دوال مساعدة عامة هنا إن وجدت
+// تم ربط شاشة الإدارة ManagementTab بالكامل وتمرير إعدادات Hive بسلاسة.
