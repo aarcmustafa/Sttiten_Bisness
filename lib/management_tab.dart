@@ -18,7 +18,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
   List<Map<String, dynamic>> archiveList = [];
 
   String searchQuery = "";
-  String customerFilter = "ALL"; // ALL, EMPLOYEES, REGULAR
+  String customerFilter = "ALL";
 
   @override
   void initState() {
@@ -85,8 +85,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     for (var s in sales) { total += (s['amount'] ?? 0); }
     return total;
   }
-
-  void _addSupplier() {
+    void _addSupplier() {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     showDialog(
@@ -120,7 +119,8 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       ),
     );
   }
-    void _manageSupplierInvoices(int index) {
+
+  void _manageSupplierInvoices(int index) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -151,7 +151,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), padding: const EdgeInsets.symmetric(vertical: 12)),
                     icon: const Icon(Icons.receipt_long, color: Colors.white),
-                    label: const Text('إضافة فاتورة جديدة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    label: const Text('إضافة فاتورة جديدة للمورد', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     onPressed: () {
                       final totalCtrl = TextEditingController();
                       final paidCtrl = TextEditingController();
@@ -262,8 +262,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       ),
     );
   }
-
-  void _addCustomer(bool isEmployee) {
+    void _addCustomer(bool isEmployee) {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     DateTime? startDate;
@@ -465,13 +464,15 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('مركز الإدارة والمبيعات'),
+        title: const Text('مركز الإدارة والمبيعات', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF1E3A8A),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
           indicatorWeight: 3,
           isScrollable: true,
+          labelColor: Colors.white, // تلوين النصوص المحددة بالأبيض لضمان الرؤية
+          unselectedLabelColor: Colors.white70, // تلوين النصوص غير المحددة بالأبيض الشفاف
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           tabs: const [
             Tab(text: 'الموردين'),
@@ -483,7 +484,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       ),
       body: Column(
         children: [
-          // شريط إحصائي تفاعلي رائع
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: Colors.white,
@@ -517,7 +517,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
               ],
             ),
           ),
-          // حقل البحث التفاعلي
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
@@ -538,22 +537,40 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
               controller: _tabController,
               children: [
                 // 1. الموردين
-                ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: filteredSuppliers.length,
-                  itemBuilder: (ctx, i) => Card(
-                    color: Colors.white,
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF1E3A8A).withOpacity(0.1),
-                        child: const Icon(Icons.business, color: Color(0xFF1E3A8A)),
+                Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), padding: const EdgeInsets.symmetric(vertical: 12)),
+                          onPressed: _addSupplier,
+                          icon: const Icon(Icons.business_rounded, color: Colors.white),
+                          label: const Text('إضافة مورد جديد', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
                       ),
-                      title: Text(filteredSuppliers[i]['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-                      subtitle: Text(filteredSuppliers[i]['phone'], style: const TextStyle(color: Colors.black54)),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                      onTap: () => _manageSupplierInvoices(suppliers.indexOf(filteredSuppliers[i])),
                     ),
-                  ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: filteredSuppliers.length,
+                        itemBuilder: (ctx, i) => Card(
+                          color: Colors.white,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFF1E3A8A).withOpacity(0.1),
+                              child: const Icon(Icons.business, color: Color(0xFF1E3A8A)),
+                            ),
+                            title: Text(filteredSuppliers[i]['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                            subtitle: Text(filteredSuppliers[i]['phone'], style: const TextStyle(color: Colors.black54)),
+                            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                            onTap: () => _manageSupplierInvoices(suppliers.indexOf(filteredSuppliers[i])),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 // 2. المبيعات النقدية
                 Column(
@@ -586,7 +603,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     )
                   ],
                 ),
-                // 3. الكريدي التفاعلي
+                // 3. حسابات الكريدي
                 Column(
                   children: [
                     Row(
@@ -597,7 +614,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // فلتر تفاعلي
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -638,7 +654,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     )
                   ],
                 ),
-                // 4. قسم الأرشيف
+                // 4. الأرشيف
                 Column(
                   children: [
                     Container(
