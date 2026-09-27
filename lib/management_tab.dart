@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'settings_page.dart'; // استيراد صفحة الإعدادات المنفصلة
+import 'settings_tab.dart'; // متوافق مع صفحة الإعدادات الجديدة
 
 class ManagementTab extends StatefulWidget {
   const ManagementTab({Key? key}) : super(key: key);
@@ -10,14 +10,12 @@ class ManagementTab extends StatefulWidget {
 }
 
 class _ManagementTabState extends State<ManagementTab> {
-  // متغيرات النظام والإعدادات
   bool isSecurityEnabled = false;
   String securityPin = "1234";
   bool isDarkMode = false;
   bool isManualStartDate = false;
   String manualStartDateStr = "2026-01-01";
 
-  // متغيرات البحث والفلترة
   String salesSearchQuery = "";
   String suppliersSearchQuery = "";
   String creditSearchQuery = "";
@@ -44,7 +42,8 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    void _addDailySaleDialog() {
+
+  void _addDailySaleDialog() {
     final amountCtrl = TextEditingController();
     final _formKey = GlobalKey<FormState>();
 
@@ -133,7 +132,7 @@ class _ManagementTabState extends State<ManagementTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('تصفية وأرشفة مبيعات اليوم', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
-        content: const Text('هل تريد تصفية قائمة المبيعات للبدء من جديد؟ (ملاحظة: الحوصلة الشهرية والسنوية ستتذكر كل هذه العمليات ولن تأثر أبداً).'),
+        content: const Text('هل تريد تصفية قائمة المبيعات للبدء من جديد؟ (الحوصلة الشهرية والسنوية ستحتفظ بجميع العمليات).'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
@@ -146,9 +145,6 @@ class _ManagementTabState extends State<ManagementTab> {
               await salesBox.clear();
               setState(() {});
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('تمت أرشفة مبيعات اليوم وتصفية القائمة بنجاح')),
-              );
             },
             child: const Text('تأكيد التصفية', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
@@ -265,8 +261,7 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-
-  void _addCreditDialog() {
+    void _addCreditDialog() {
     String type = 'زبون';
     final nameCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
@@ -403,13 +398,11 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-
-  // الانتقال إلى صفحة الإعدادات المنفصلة
-  void _openSettingsPage() {
+    void _openSettingsPage() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SettingsPage(
+        builder: (context) => SettingsTab(
           initialSecurityEnabled: isSecurityEnabled,
           initialPin: securityPin,
           initialDarkMode: isDarkMode,
@@ -428,7 +421,8 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    Widget buildFinancialSummaryCard() {
+
+  Widget buildFinancialSummaryCard() {
     return AnimatedBuilder(
       animation: Listenable.merge([
         Hive.box('salesBox').listenable(),
@@ -491,7 +485,7 @@ class _ManagementTabState extends State<ManagementTab> {
                   const Text('الحوصلة المالية الشاملة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D9488))),
                   IconButton(
                     icon: const Icon(Icons.settings, size: 20, color: Colors.grey), 
-                    onPressed: _openSettingsPage, // يفتح صفحة الإعدادات الجديدة
+                    onPressed: _openSettingsPage,
                   )
                 ],
               ),
@@ -525,7 +519,7 @@ class _ManagementTabState extends State<ManagementTab> {
         );
       },
     );
-    }
+  }
     @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -584,7 +578,7 @@ class _ManagementTabState extends State<ManagementTab> {
                     valueListenable: Hive.box('salesBox').listenable(),
                     builder: (context, Box box, _) {
                       if (box.isEmpty) {
-                        return const Center(child: Text('قائمة مبيعات اليوم فارغة (تمت تصفيتها أو أُضيفت حديثاً)', style: TextStyle(color: Colors.grey)));
+                        return const Center(child: Text('قائمة مبيعات اليوم فارغة', style: TextStyle(color: Colors.grey)));
                       }
                       return ListView.builder(
                         itemCount: box.length,
@@ -601,12 +595,10 @@ class _ManagementTabState extends State<ManagementTab> {
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.edit, color: Colors.blue),
-                                    tooltip: 'تعديل',
                                     onPressed: () => _editDailySaleDialog(index, item),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.delete, color: Colors.red),
-                                    tooltip: 'حذف',
                                     onPressed: () => showDeleteConfirmation(context, () => box.deleteAt(index)),
                                   ),
                                 ],
@@ -621,7 +613,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- 2. تبويب الموردين (مع البحث وأرشيف 60 يوماً) ---
+            // --- 2. تبويب الموردين (مع أرشيف 60 يوماً) ---
             Column(
               children: [
                 Padding(
@@ -680,12 +672,10 @@ class _ManagementTabState extends State<ManagementTab> {
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.edit, color: Colors.blue),
-                                    tooltip: 'تعديل',
                                     onPressed: () => _editSupplierDialog(index, item),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.delete, color: Colors.red),
-                                    tooltip: 'حذف',
                                     onPressed: () => showDeleteConfirmation(context, () => box.deleteAt(index)),
                                   ),
                                 ],
@@ -700,7 +690,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- 3. تبويب الكريدي (مع البحث، الفلترة، وأرشيف 70 يوماً) ---
+            // --- 3. تبويب الكريدي (مع أرشيف 70 يوماً والفلترة) ---
             Column(
               children: [
                 Padding(
@@ -787,12 +777,10 @@ class _ManagementTabState extends State<ManagementTab> {
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.edit, color: Colors.blue),
-                                    tooltip: 'تعديل',
                                     onPressed: () => _editCreditDialog(index, item),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.delete, color: Colors.red),
-                                    tooltip: 'حذف',
                                     onPressed: () => showDeleteConfirmation(context, () => box.deleteAt(index)),
                                   ),
                                 ],
