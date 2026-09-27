@@ -15,7 +15,11 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
   List<Map<String, dynamic>> suppliers = [];
   List<Map<String, dynamic>> sales = [];
   List<Map<String, dynamic>> customers = [];
-  List<Map<String, dynamic>> archiveList = [];
+  
+  // قوائم الأرشيف منفصلة حسب الأقسام
+  List<Map<String, dynamic>> archiveSuppliers = [];
+  List<Map<String, dynamic>> archiveSales = [];
+  List<Map<String, dynamic>> archiveCustomers = [];
 
   String searchQuery = "";
   String customerFilter = "ALL";
@@ -29,14 +33,16 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
   Future<void> _loadAllData() async {
     final prefs = await SharedPreferences.getInstance();
-    DateTime twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
+    DateTime sixtyDaysAgo = DateTime.now().subtract(const Duration(days: 60));
+    DateTime seventyDaysAgo = DateTime.now().subtract(const Duration(days: 70));
 
+    // تحميل وتصفية الموردين وفواتيرهم
     List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? [])
         .map((e) => jsonDecode(e) as Map<String, dynamic>)
         .toList();
     for (var sup in loadedSuppliers) {
       List invoices = sup['invoices'] ?? [];
-      invoices.removeWhere((inv) => DateTime.parse(inv['date']).isBefore(twoMonthsAgo));
+      invoices.removeWhere((inv) => DateTime.parse(inv['date']).isBefore(sixtyDaysAgo));
       sup['invoices'] = invoices;
     }
     suppliers = loadedSuppliers;
@@ -44,11 +50,21 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     sales = (prefs.getStringList('sales_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     customers = (prefs.getStringList('customers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
 
-    List<Map<String, dynamic>> loadedArchive = (prefs.getStringList('archive_v2') ?? [])
+    // تحميل الأرشيف وتطبيق مدة الحذف (60 يوماً للموردين والمبيعات، 70 يوماً للكريدي)
+    archiveSuppliers = (prefs.getStringList('archive_suppliers') ?? [])
         .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .where((item) => DateTime.parse(item['date']).isAfter(sixtyDaysAgo))
         .toList();
-    loadedArchive.removeWhere((item) => DateTime.parse(item['date']).isBefore(twoMonthsAgo));
-    archiveList = loadedArchive;
+
+    archiveSales = (prefs.getStringList('archive_sales') ?? [])
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .where((item) => DateTime.parse(item['date']).isAfter(sixtyDaysAgo))
+        .toList();
+
+    archiveCustomers = (prefs.getStringList('archive_customers') ?? [])
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .where((item) => DateTime.parse(item['date']).isAfter(seventyDaysAgo))
+        .toList();
 
     _saveAllData();
   }
@@ -58,17 +74,23 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     await prefs.setStringList('suppliers_v2', suppliers.map((e) => jsonEncode(e)).toList());
     await prefs.setStringList('sales_v2', sales.map((e) => jsonEncode(e)).toList());
     await prefs.setStringList('customers_v2', customers.map((e) => jsonEncode(e)).toList());
-    await prefs.setStringList('archive_v2', archiveList.map((e) => jsonEncode(e)).toList());
+    
+    await prefs.setStringList('archive_suppliers', archiveSuppliers.map((e) => jsonEncode(e)).toList());
+    await prefs.setStringList('archive_sales', archiveSales.map((e) => jsonEncode(e)).toList());
+    await prefs.setStringList('archive_customers', archiveCustomers.map((e) => jsonEncode(e)).toList());
     setState(() {});
   }
 
-  void _addArchiveEntry(String title, String details, double amount) {
-    archiveList.insert(0, {
+  void _addArchiveEntry(String section, String title, String details, double amount) {
+    var entry = {
       'title': title,
       'details': details,
       'amount': amount,
       'date': DateTime.now().toIso8601String(),
-    });
+    };
+    if (section == 'suppliers') archiveSuppliers.insert(0, entry);
+    if (section == 'sales') archiveSales.insert(0, entry);
+    if (section == 'customers') archiveCustomers.insert(0, entry);
   }
 
   double get _totalCustomersDebt {
@@ -185,7 +207,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                     'remaining': total - paid,
                                   });
                                 });
-                                _addArchiveEntry('فاتورة مورد', 'المورد: ${suppliers[index]['name']}', total);
+                                _addArchiveEntry('suppliers', 'فاتورة مورد', 'المورد: ${suppliers[index]['name']}', total);
                                 _saveAllData();
                                 Navigator.pop(dCtx);
                               },
@@ -231,14 +253,15 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     );
   }
 
-  void _addDailySale() {
-    final amountCtrl = TextEditingController();
+  // إضافة أو تعديل مبيعات نقدية
+  void _addOrEditDailySale({Map<String, dynamic>? saleToEdit, int? editIndex}) {
+    final amountCtrl = TextEditingController(text: saleToEdit != null ? saleToEdit['amount'].toString() : '');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('مبيعات اليوم النقدي (${DateFormat('yyyy-MM-dd').format(DateTime.now())})', style: const TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+        title: Text(saleToEdit == null ? 'تسجيل مبيعات نقدية جديدة' : 'تعديل المبلغ النقدي', style: const TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
         content: TextField(
           controller: amountCtrl,
           style: const TextStyle(color: Colors.black87),
@@ -251,12 +274,16 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
             onPressed: () {
               double amount = double.tryParse(amountCtrl.text) ?? 0;
-              sales.add({'date': DateTime.now().toIso8601String(), 'amount': amount});
-              _addArchiveEntry('بيع نقدي', 'مبيعات يومية مباشرة', amount);
+              if (saleToEdit == null) {
+                sales.add({'date': DateTime.now().toIso8601String(), 'amount': amount});
+                _addArchiveEntry('sales', 'بيع نقدي', 'مبيعات يومية مباشرة', amount);
+              } else {
+                sales[editIndex!]['amount'] = amount;
+              }
               _saveAllData();
               Navigator.pop(ctx);
             },
-            child: const Text('تسجيل المبيعات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(saleToEdit == null ? 'تسجيل' : 'تعديل', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -372,7 +399,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                     setModalState(() {
                                       customers[index]['purchases'].add({'date': DateTime.now().toIso8601String(), 'amount': amount});
                                     });
-                                    _addArchiveEntry('إضافة كريدي', 'الزبون: ${customers[index]['name']}', amount);
+                                    _addArchiveEntry('customers', 'إضافة كريدي', 'الزبون: ${customers[index]['name']}', amount);
                                     _saveAllData();
                                     Navigator.pop(dCtx);
                                   },
@@ -416,7 +443,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                         customers[index]['purchases'] = [];
                                         customers[index]['rolledOverDebt'] = totalOwed - paid;
                                       });
-                                      _addArchiveEntry('تسديد كريدي موظف', 'الموظف: ${customers[index]['name']} (تم دفع: $paid دج)', paid);
+                                      _addArchiveEntry('customers', 'تسديد كريدي موظف', 'الموظف: ${customers[index]['name']} (تم دفع: $paid دج)', paid);
                                       _saveAllData();
                                       Navigator.pop(dCtx);
                                     },
@@ -471,8 +498,8 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
           indicatorColor: Colors.white,
           indicatorWeight: 3,
           isScrollable: true,
-          labelColor: Colors.white, // تلوين النصوص المحددة بالأبيض لضمان الرؤية
-          unselectedLabelColor: Colors.white70, // تلوين النصوص غير المحددة بالأبيض الشفاف
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           tabs: const [
             Tab(text: 'الموردين'),
@@ -572,7 +599,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     ),
                   ],
                 ),
-                // 2. المبيعات النقدية
+                // 2. المبيعات النقدية (مع إمكانية التعديل والحذف)
                 Column(
                   children: [
                     Padding(
@@ -581,7 +608,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), padding: const EdgeInsets.symmetric(vertical: 12)),
-                          onPressed: _addDailySale,
+                          onPressed: () => _addOrEditDailySale(),
                           icon: const Icon(Icons.add_card, color: Colors.white),
                           label: const Text('تسجيل مبيعات نقدية جديدة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
@@ -596,7 +623,25 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                           child: ListTile(
                             leading: const Icon(Icons.monetization_on_rounded, color: Colors.green, size: 30),
                             title: Text(DateFormat('yyyy-MM-dd').format(DateTime.parse(sales[i]['date'])), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-                            trailing: Text('${sales[i]['amount']} دج', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('${sales[i]['amount']} دج', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                                  onPressed: () => _addOrEditDailySale(saleToEdit: sales[i], editIndex: i),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      sales.removeAt(i);
+                                      _saveAllData();
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -654,42 +699,68 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     )
                   ],
                 ),
-                // 4. الأرشيف
-                Column(
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.all(12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200)),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.auto_delete_rounded, color: Color(0xFF1E3A8A)),
-                          SizedBox(width: 10),
-                          Expanded(child: Text('أرشيف العمليات (يتم مسح السجلات القديمة تلقائياً بعد شهرين)', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold, fontSize: 13))),
+                // 4. الأرشيف (مقسّم حسب الأقسام)
+                DefaultTabController(
+                  length: 3,
+                  child: Column(
+                    children: [
+                      const TabBar(
+                        labelColor: Color(0xFF1E3A8A),
+                        unselectedLabelColor: Colors.grey,
+                        indicatorColor: Color(0xFF1E3A8A),
+                        tabs: [
+                          Tab(text: 'أرشيف الموردين'),
+                          Tab(text: 'أرشيف المبيعات'),
+                          Tab(text: 'أرشيف الكريدي (70 يوماً)'),
                         ],
                       ),
-                    ),
-                    Expanded(
-                      child: archiveList.isEmpty
-                          ? const Center(child: Text('لا توجد عمليات مؤرشفة حالياً', style: TextStyle(color: Colors.grey, fontSize: 16)))
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              itemCount: archiveList.length,
-                              itemBuilder: (ctx, i) {
-                                var item = archiveList[i];
-                                return Card(
-                                  color: Colors.white,
-                                  child: ListTile(
-                                    leading: const CircleAvatar(backgroundColor: Color(0xFFF1F5F9), child: Icon(Icons.history, color: Color(0xFF1E3A8A))),
-                                    title: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-                                    subtitle: Text('${item['details']}\n${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(item['date']))}', style: const TextStyle(color: Colors.black54)),
-                                    trailing: Text('${item['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E3A8A))),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            // أرشيف الموردين
+                            archiveSuppliers.isEmpty
+                                ? const Center(child: Text('لا توجد عمليات مؤرشفة للموردين', style: TextStyle(color: Colors.grey)))
+                                : ListView.builder(
+                                    itemCount: archiveSuppliers.length,
+                                    itemBuilder: (c, i) => Card(
+                                      child: ListTile(
+                                        title: Text(archiveSuppliers[i]['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        subtitle: Text('${archiveSuppliers[i]['details']}\n${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(archiveSuppliers[i]['date']))}'),
+                                        trailing: Text('${archiveSuppliers[i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+                                      ),
+                                    ),
                                   ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
+                            // أرشيف المبيعات
+                            archiveSales.isEmpty
+                                ? const Center(child: Text('لا توجد عمليات مؤرشفة للمبيعات', style: TextStyle(color: Colors.grey)))
+                                : ListView.builder(
+                                    itemCount: archiveSales.length,
+                                    itemBuilder: (c, i) => Card(
+                                      child: ListTile(
+                                        title: Text(archiveSales[i]['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        subtitle: Text('${archiveSales[i]['details']}\n${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(archiveSales[i]['date']))}'),
+                                        trailing: Text('${archiveSales[i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                                      ),
+                                    ),
+                                  ),
+                            // أرشيف الكريدي (يحذف تلقائياً بعد 70 يوماً)
+                            archiveCustomers.isEmpty
+                                ? const Center(child: Text('لا توجد عمليات مؤرشفة للكريدي', style: TextStyle(color: Colors.grey)))
+                                : ListView.builder(
+                                    itemCount: archiveCustomers.length,
+                                    itemBuilder: (c, i) => Card(
+                                      child: ListTile(
+                                        title: Text(archiveCustomers[i]['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        subtitle: Text('${archiveCustomers[i]['details']}\n${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(archiveCustomers[i]['date']))}'),
+                                        trailing: Text('${archiveCustomers[i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                                      ),
+                                    ),
+                                  ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -701,7 +772,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
         child: const Icon(Icons.add, color: Colors.white),
         onPressed: () {
           if (_tabController.index == 0) _addSupplier();
-          if (_tabController.index == 1) _addDailySale();
+          if (_tabController.index == 1) _addOrEditDailySale();
           if (_tabController.index == 2) _addCustomer(false);
         },
       ),
