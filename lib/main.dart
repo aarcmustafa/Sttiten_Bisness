@@ -96,8 +96,21 @@ class StoreProvider with ChangeNotifier {
   
   DateTime boxStartDate = DateTime(DateTime.now().year, DateTime.now().month, 1); 
 
+  // إدارة الموردين (إضافة، تعديل، حذف)
   void addSupplier(String name, String phone) {
     suppliers.add(Supplier(id: DateTime.now().toString(), name: name, phone: phone, startDate: DateTime.now()));
+    notifyListeners();
+  }
+
+  void updateSupplier(String id, String name, String phone) {
+    var supplier = suppliers.firstWhere((s) => s.id == id);
+    supplier.name = name;
+    supplier.phone = phone;
+    notifyListeners();
+  }
+
+  void deleteSupplier(String id) {
+    suppliers.removeWhere((s) => s.id == id);
     notifyListeners();
   }
 
@@ -115,6 +128,7 @@ class StoreProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // إدارة المبيعات
   void addDailySale(double amount) {
     sales.add(DailySale(date: DateTime.now(), cashAmount: amount));
     notifyListeners();
@@ -134,8 +148,23 @@ class StoreProvider with ChangeNotifier {
     return credit;
   }
 
+  // إدارة الزبائن والكريدي (إضافة، تعديل، حذف)
   void addCustomer(String name, String phone, bool isEmployee, DateTime? startDate) {
     customers.add(Customer(id: DateTime.now().toString(), name: name, phone: phone, isEmployee: isEmployee, monthStartDate: startDate));
+    notifyListeners();
+  }
+
+  void updateCustomer(String id, String name, String phone, bool isEmployee, DateTime? startDate) {
+    var customer = customers.firstWhere((c) => c.id == id);
+    customer.name = name;
+    customer.phone = phone;
+    customer.isEmployee = isEmployee;
+    customer.monthStartDate = startDate;
+    notifyListeners();
+  }
+
+  void deleteCustomer(String id) {
+    customers.removeWhere((c) => c.id == id);
     notifyListeners();
   }
 
@@ -207,10 +236,6 @@ Route smoothNavigate(Widget page) {
     transitionDuration: const Duration(milliseconds: 300),
   );
 }
-// ==========================================
-// 3. UI SCREENS (الواجهات)
-// ==========================================
-
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -252,7 +277,7 @@ class HomeScreen extends StatelessWidget {
                 _buildMenuBtn(context, 'الموردين', const SuppliersScreen(), Icons.local_shipping),
                 _buildMenuBtn(context, 'المبيعات', const SalesScreen(), Icons.point_of_sale),
                 _buildMenuBtn(context, 'الكريدي والزبائن', const CreditScreen(), Icons.people),
-                _buildMenuBtn(context, 'الصندوق (أرباح)', const BoxScreen(), Icons.account_balance_wallet),
+                _buildMenuBtn(context, 'الصندوق والأرباح', const BoxScreen(), Icons.account_balance_wallet),
               ],
             ),
           ),
@@ -294,30 +319,69 @@ class HomeScreen extends StatelessWidget {
 }
 
 // ------------------------------------------
-// شاشة الموردين
+// شاشة الموردين (مع البحث والتعديل والحذف)
 // ------------------------------------------
-class SuppliersScreen extends StatelessWidget {
+class SuppliersScreen extends StatefulWidget {
   const SuppliersScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SuppliersScreen> createState() => _SuppliersScreenState();
+}
+
+class _SuppliersScreenState extends State<SuppliersScreen> {
+  String searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
     var provider = context.watch<StoreProvider>();
+    var filteredSuppliers = provider.suppliers.where((s) => s.name.contains(searchQuery) || s.phone.contains(searchQuery)).toList();
+
     return Scaffold(
       appBar: AppBar(title: const Text('الموردين')),
-      body: ListView.builder(
-        itemCount: provider.suppliers.length,
-        itemBuilder: (ctx, i) {
-          var s = provider.suppliers[i];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            child: ListTile(
-              title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(s.phone),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () => Navigator.push(context, smoothNavigate(SupplierDetailsScreen(supplier: s))),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'بحث عن مورد...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) => setState(() => searchQuery = v),
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: filteredSuppliers.length,
+              itemBuilder: (ctx, i) {
+                var s = filteredSuppliers[i];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: ListTile(
+                    title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(s.phone),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _showEditSupplierDialog(context, s),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _confirmDeleteSupplier(context, s.id),
+                        ),
+                        const Icon(Icons.arrow_forward_ios, size: 16),
+                      ],
+                    ),
+                    onTap: () => Navigator.push(context, smoothNavigate(SupplierDetailsScreen(supplier: s))),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddSupplierDialog(context),
@@ -349,8 +413,48 @@ class SuppliersScreen extends StatelessWidget {
       ],
     ));
   }
+
+  void _showEditSupplierDialog(BuildContext context, Supplier supplier) {
+    String name = supplier.name, phone = supplier.phone;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('تعديل بيانات المورد'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: TextEditingController(text: name), decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
+          TextField(controller: TextEditingController(text: phone), decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          if(name.isNotEmpty) {
+            context.read<StoreProvider>().updateSupplier(supplier.id, name, phone);
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('تحديث'))
+      ],
+    ));
+  }
+
+  void _confirmDeleteSupplier(BuildContext context, String id) {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('تأكيد الحذف'),
+      content: const Text('هل أنت متأكد من حذف هذا المورد؟'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {
+          context.read<StoreProvider>().deleteSupplier(id);
+          Navigator.pop(ctx);
+        }, child: const Text('حذف'))
+      ],
+    ));
+  }
 }
 
+// ------------------------------------------
+// تفاصيل المورد (الفواتير)
+// ------------------------------------------
 class SupplierDetailsScreen extends StatelessWidget {
   final Supplier supplier;
   const SupplierDetailsScreen({Key? key, required this.supplier}) : super(key: key);
@@ -435,6 +539,9 @@ class SupplierDetailsScreen extends StatelessWidget {
   }
 }
 
+// ------------------------------------------
+// شاشة المبيعات
+// ------------------------------------------
 class SalesScreen extends StatelessWidget {
   const SalesScreen({Key? key}) : super(key: key);
 
@@ -503,31 +610,70 @@ class SalesScreen extends StatelessWidget {
   }
 }
 // ------------------------------------------
-// شاشة الكريدي والزبائن
+// شاشة الكريدي والزبائن (مع البحث والتعديل والحذف)
 // ------------------------------------------
-class CreditScreen extends StatelessWidget {
+class CreditScreen extends StatefulWidget {
   const CreditScreen({Key? key}) : super(key: key);
+
+  @override
+  State<CreditScreen> createState() => _CreditScreenState();
+}
+
+class _CreditScreenState extends State<CreditScreen> {
+  String searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
     var provider = context.watch<StoreProvider>();
+    var filteredCustomers = provider.customers.where((c) => c.name.contains(searchQuery) || c.phone.contains(searchQuery)).toList();
+
     return Scaffold(
       appBar: AppBar(title: const Text('الكريدي والزبائن')),
-      body: ListView.builder(
-        itemCount: provider.customers.length,
-        itemBuilder: (ctx, i) {
-          var c = provider.customers[i];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            child: ListTile(
-              leading: Icon(c.isEmployee ? Icons.badge : Icons.person),
-              title: Text('${c.name} ${c.isEmployee ? "(موظف)" : "(آخرون)"}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(c.phone),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () => Navigator.push(context, smoothNavigate(CustomerDetailsScreen(customer: c))),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'بحث عن زبون أو موظف...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) => setState(() => searchQuery = v),
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: filteredCustomers.length,
+              itemBuilder: (ctx, i) {
+                var c = filteredCustomers[i];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: ListTile(
+                    leading: Icon(c.isEmployee ? Icons.badge : Icons.person),
+                    title: Text('${c.name} ${c.isEmployee ? "(موظف)" : "(آخرون)"}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(c.phone),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _showEditCustomerDialog(context, c),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _confirmDeleteCustomer(context, c.id),
+                        ),
+                        const Icon(Icons.arrow_forward_ios, size: 16),
+                      ],
+                    ),
+                    onTap: () => Navigator.push(context, smoothNavigate(CustomerDetailsScreen(customer: c))),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddCustomerDialog(context),
@@ -620,6 +766,105 @@ class CreditScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void _showEditCustomerDialog(BuildContext context, Customer customer) {
+    String name = customer.name, phone = customer.phone;
+    bool isEmployee = customer.isEmployee;
+    DateTime? selectedDate = customer.monthStartDate;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('تعديل بيانات الزبون'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: isEmployee ? Colors.blue : Colors.grey.shade400),
+                            onPressed: () => setState(() => isEmployee = true),
+                            child: const Text('موظف'),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: !isEmployee ? Colors.blue : Colors.grey.shade400),
+                            onPressed: () => setState(() {
+                              isEmployee = false;
+                              selectedDate = null;
+                            }),
+                            child: const Text('آخرون'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  TextField(controller: TextEditingController(text: name), decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
+                  TextField(controller: TextEditingController(text: phone), decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
+                  const SizedBox(height: 15),
+                  if (isEmployee)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(selectedDate == null 
+                          ? 'تحديد تاريخ بداية الشهر' 
+                          : 'البداية: ${selectedDate.toString().substring(0, 10)}'),
+                      onPressed: () async {
+                        DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setState(() => selectedDate = picked);
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              ElevatedButton(
+                onPressed: () {
+                  if(name.isNotEmpty) {
+                    context.read<StoreProvider>().updateCustomer(customer.id, name, phone, isEmployee, selectedDate);
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('تحديث'),
+              )
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _confirmDeleteCustomer(BuildContext context, String id) {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('تأكيد الحذف'),
+      content: const Text('هل أنت متأكد من حذف هذا الزبون؟'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {
+          context.read<StoreProvider>().deleteCustomer(id);
+          Navigator.pop(ctx);
+        }, child: const Text('حذف'))
+      ],
+    ));
   }
 }
 
@@ -741,7 +986,7 @@ class CustomerDetailsScreen extends StatelessWidget {
 }
 
 // ------------------------------------------
-// شاشة الصندوق (أرباح وحسابات)
+// شاشة الصندوق والأرباح (مع مؤشرات إحصائية)
 // ------------------------------------------
 class BoxScreen extends StatelessWidget {
   const BoxScreen({Key? key}) : super(key: key);
