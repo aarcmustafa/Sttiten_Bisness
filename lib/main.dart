@@ -20,7 +20,7 @@ class StittenStoresApp extends StatelessWidget {
 }
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'home_screen.dart';
+import '../home_screen.dart';
 
 class LockScreen extends StatefulWidget {
   const LockScreen({Key? key}) : super(key: key);
