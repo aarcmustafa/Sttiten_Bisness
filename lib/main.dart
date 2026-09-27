@@ -186,9 +186,6 @@ class StoreProvider with ChangeNotifier {
   }
 }
 
-// ==========================================
-// HELPER FOR SMOOTH TRANSITION (التنقل السلس)
-// ==========================================
 Route smoothNavigate(Widget page) {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => page,
@@ -210,7 +207,6 @@ Route smoothNavigate(Widget page) {
     transitionDuration: const Duration(milliseconds: 300),
   );
 }
-
 // ==========================================
 // 3. UI SCREENS (الواجهات)
 // ==========================================
@@ -355,9 +351,6 @@ class SuppliersScreen extends StatelessWidget {
   }
 }
 
-// ------------------------------------------
-// تفاصيل المورد (الفواتير)
-// ------------------------------------------
 class SupplierDetailsScreen extends StatelessWidget {
   final Supplier supplier;
   const SupplierDetailsScreen({Key? key, required this.supplier}) : super(key: key);
@@ -442,9 +435,6 @@ class SupplierDetailsScreen extends StatelessWidget {
   }
 }
 
-// ------------------------------------------
-// شاشة المبيعات
-// ------------------------------------------
 class SalesScreen extends StatelessWidget {
   const SalesScreen({Key? key}) : super(key: key);
 
@@ -512,7 +502,6 @@ class SalesScreen extends StatelessWidget {
     ));
   }
 }
-
 // ------------------------------------------
 // شاشة الكريدي والزبائن
 // ------------------------------------------
@@ -567,3 +556,248 @@ class CreditScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: isEmployee ? Colors.blue : Colors.grey.shade400),
+                            onPressed: () => setState(() => isEmployee = true),
+                            child: const Text('موظف'),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: !isEmployee ? Colors.blue : Colors.grey.shade400),
+                            onPressed: () => setState(() {
+                              isEmployee = false;
+                              selectedDate = null;
+                            }),
+                            child: const Text('آخرون'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  TextField(decoration: const InputDecoration(labelText: 'الاسم الكامل'), onChanged: (v) => name = v),
+                  TextField(decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone, onChanged: (v) => phone = v),
+                  const SizedBox(height: 15),
+                  if (isEmployee)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(selectedDate == null 
+                          ? 'تحديد تاريخ بداية الشهر' 
+                          : 'البداية: ${selectedDate.toString().substring(0, 10)}'),
+                      onPressed: () async {
+                        DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setState(() => selectedDate = picked);
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              ElevatedButton(
+                onPressed: () {
+                  if(name.isNotEmpty) {
+                    context.read<StoreProvider>().addCustomer(name, phone, isEmployee, selectedDate);
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('حفظ'),
+              )
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class CustomerDetailsScreen extends StatelessWidget {
+  final Customer customer;
+  const CustomerDetailsScreen({Key? key, required this.customer}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var provider = context.watch<StoreProvider>();
+    var currentCustomer = provider.customers.firstWhere((c) => c.id == customer.id, orElse: () => customer);
+    double totalDebt = currentCustomer.purchases.fold(0, (sum, p) => sum + p.amount);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('حساب الزبون: ${currentCustomer.name}')),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            color: Colors.grey.shade200,
+            child: Column(
+              children: [
+                const Text('إجمالي الكريدي (الدين) الباقي', style: TextStyle(fontSize: 16)),
+                Text(
+                  totalDebt.toStringAsFixed(2), 
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: totalDebt > 0 ? Colors.red : Colors.green)
+                ),
+                if (currentCustomer.isEmployee && currentCustomer.monthStartDate != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'بداية الشهر للموظف: ${currentCustomer.monthStartDate.toString().substring(0, 10)}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: currentCustomer.purchases.length,
+              itemBuilder: (ctx, i) {
+                var p = currentCustomer.purchases[i];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: ListTile(
+                    title: Text('المبلغ: ${p.amount} دج'),
+                    subtitle: Text('التاريخ: ${p.date.toString().substring(0, 10)}'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'add_purchase',
+            onPressed: () => _showAddPurchaseDialog(context),
+            label: const Text('تسجيل دين جديد'),
+            icon: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 10),
+          if (currentCustomer.isEmployee)
+            FloatingActionButton.extended(
+              heroTag: 'settle_employee',
+              backgroundColor: Colors.green,
+              onPressed: () => _showSettleDialog(context),
+              label: const Text('تخليص الشهر للموظف'),
+              icon: const Icon(Icons.done_all),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddPurchaseDialog(BuildContext context) {
+    double amount = 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('تسجيل مشتريات (كريدي)'),
+      content: TextField(
+        decoration: const InputDecoration(labelText: 'قيمة المشتريات'),
+        keyboardType: TextInputType.number,
+        onChanged: (v) => amount = double.tryParse(v) ?? 0,
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          if(amount > 0) {
+            context.read<StoreProvider>().addPurchaseToCustomer(customer.id, amount);
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('حفظ'))
+      ],
+    ));
+  }
+
+  void _showSettleDialog(BuildContext context) {
+    double paid = 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('تخليص الحساب الشهري'),
+      content: TextField(
+        decoration: const InputDecoration(labelText: 'المبلغ المدفوع للتخليص'),
+        keyboardType: TextInputType.number,
+        onChanged: (v) => paid = double.tryParse(v) ?? 0,
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ElevatedButton(onPressed: () {
+          context.read<StoreProvider>().settleMonthlyCustomer(customer.id, paid);
+          Navigator.pop(ctx);
+        }, child: const Text('تأكيد'))
+      ],
+    ));
+  }
+}
+
+// ------------------------------------------
+// شاشة الصندوق (أرباح وحسابات)
+// ------------------------------------------
+class BoxScreen extends StatelessWidget {
+  const BoxScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    var provider = context.watch<StoreProvider>();
+    double sales = provider.totalMonthlySales;
+    double costs = provider.totalMonthlyCosts;
+    double netProfit = sales - costs;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('الصندوق والأرباح')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const Text('حساب الصندوق الشهري', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Divider(),
+                    Text('تاريخ بدء الحساب: ${provider.boxStartDate.toString().substring(0, 10)}'),
+                    const SizedBox(height: 10),
+                    Text('إجمالي المبيعات: $sales دج', style: const TextStyle(color: Colors.green, fontSize: 16)),
+                    Text('إجمالي التكاليف (الموردين): $costs دج', style: const TextStyle(color: Colors.red, fontSize: 16)),
+                    const Divider(),
+                    Text('صافي الربح: $netProfit دج', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: netProfit >= 0 ? Colors.blue : Colors.orange)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.date_range),
+              label: const Text('تغيير تاريخ بداية الصندوق'),
+              onPressed: () async {
+                DateTime? picked = await showDatePicker(
+                  context: context,
+                  initialDate: provider.boxStartDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2030),
+                );
+                if (picked != null) {
+                  provider.setBoxStartDate(picked);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
