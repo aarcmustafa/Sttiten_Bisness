@@ -1,22 +1,16 @@
 name: sttiten_bisness
-description: A new Flutter project for Stitten Stores 2.0.
+description: "تطبيق Stitten Stores لإدارة الموردين والزبائن والكريدي والموظفين."
+publish_to: "none" 
 
-publish_to: 'none' 
-version: 2.0.0+2
+version: 2.0.0+1 
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  
-  # حزمة دعم اللغة العربية للرزنامة
-  flutter_localizations:
-    sdk: flutter
-
-  # حزمة إدارة الحالة
-  provider: ^6.1.2
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:
