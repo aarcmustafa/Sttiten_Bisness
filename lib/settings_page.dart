@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class SettingsPage extends StatefulWidget {
   final bool initialSecurityEnabled;
@@ -61,7 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const Text('🔒 نظام الحماية والأمان', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
           const SizedBox(height: 5),
           SwitchListTile(
-            title: const Text('تفعيل قفل الحماية برمز سري'),
+            title: const Text('تفعيل قفل الحماية بررمز سري'),
             subtitle: Text(isSecurityEnabled ? 'الحماية مفعلة' : 'غير مفعلة'),
             value: isSecurityEnabled,
             activeColor: const Color(0xFF0D9488),
@@ -112,7 +113,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 5),
           SwitchListTile(
             title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
-            subtitle: Text(isManualStartDate ? 'مفعل ($manualStartDateStr)' : 'تلقائي (حسب الشهر الحالي)'),
+            subtitle: Text(isManualStartDate ? 'مفعل (${dateCtrl.text})' : 'تلقائي (حسب الشهر الحالي)'),
             value: isManualStartDate,
             activeColor: const Color(0xFF0D9488),
             onChanged: (val) => setState(() => isManualStartDate = val),
@@ -131,7 +132,50 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
           const Divider(height: 30),
 
-          // --- 5. حول التطبيق ---
+          // --- 5. إدارة البيانات والأرشيف (مسح الأرشيف) ---
+          const Text('🗑️ إدارة البيانات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 16)),
+          const SizedBox(height: 5),
+          ListTile(
+            title: const Text('محو أرشيف المبيعات القديم', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            subtitle: const Text('تحذير: سيؤدي لحذف الأرشيف نهائياً وتأثره على الحوصلة الشهرية والسنوية'),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_forever, color: Colors.red),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('تحذير خطير!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    content: const Text('هل أنت متأكد تماماً من رغبتك في مسح أرشيف المبيعات القديم؟ هذه الخطوة لا يمكن التراجع عنها وستقوم بتصفير الحسابات القديمة من الحوصلة.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx), 
+                        child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        onPressed: () async {
+                          if (Hive.isBoxOpen('archivedSalesBox')) {
+                            await Hive.box('archivedSalesBox').clear();
+                          } else {
+                            var box = await Hive.openBox('archivedSalesBox');
+                            await box.clear();
+                          }
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('تم محو أرشيف المبيعات بنجاح')),
+                          );
+                        },
+                        child: const Text('تأكيد المحو', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const Divider(height: 30),
+
+          // --- 6. حول التطبيق ---
           const Center(
             child: Column(
               children: [
