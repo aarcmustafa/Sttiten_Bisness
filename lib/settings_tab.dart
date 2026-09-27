@@ -17,11 +17,11 @@ class _SettingsTabState extends State<SettingsTab> {
     final savedPin = prefs.getString('app_pin') ?? "1234";
 
     if (_oldPinController.text != savedPin) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('رمز الـ PIN القديم غير صحيح')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز القديم غير صحيح!')));
       return;
     }
     if (_newPinController.text.length != 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز الجديد يجب أن يكون 4 أرقام')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز الجديد يجب أن يكون 4 أرقام!')));
       return;
     }
 
@@ -34,30 +34,32 @@ class _SettingsTabState extends State<SettingsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('الإعدادات وحول التطبيق'), centerTitle: true),
+      appBar: AppBar(title: const Text('الإعدادات والحماية')),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          const Text('تغيير رمز الحماية (PIN)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          TextField(controller: _oldPinController, decoration: const InputDecoration(labelText: 'الرمز القديم'), obscureText: true, maxLength: 4),
-          TextField(controller: _newPinController, decoration: const InputDecoration(labelText: 'الرمز الجديد (4 أرقام)'), obscureText: true, maxLength: 4),
-          ElevatedButton(onPressed: _changePin, child: const Text('تحديث الرمز')),
-          const Divider(height: 40),
+          const Text('تغيير رمز الدخول (PIN)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          TextField(controller: _oldPinController, decoration: const InputDecoration(labelText: 'الرمز القديم (الافتراضي 1234)'), obscureText: true, maxLength: 4, keyboardType: TextInputType.number),
+          TextField(controller: _newPinController, decoration: const InputDecoration(labelText: 'الرمز الجديد (4 أرقام)'), obscureText: true, maxLength: 4, keyboardType: TextInputType.number),
+          ElevatedButton(onPressed: _changePin, child: const Text('حفظ الرمز الجديد')),
+          
+          const SizedBox(height: 40),
+          const Divider(thickness: 2),
           Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
             child: Column(
-              children: [
-                const Text('Stitten Stores', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const Text('الإصدار: v2.0.0'),
-                const SizedBox(height: 10),
-                const Text('تصميم وتطوير البرمجيات:'),
-                const Text('جلولي مصطفى', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-                const SizedBox(height: 10),
-                const Text('جميع الحقوق محفوظة © 2026', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              children: const [
+                Text('Stitten Stores', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                Text('الإصدار: v2.0'),
+                SizedBox(height: 10),
+                Text('تصميم وتطوير البرمجيات:', style: TextStyle(fontSize: 16)),
+                Text('جلولي مصطفى', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                SizedBox(height: 10),
+                Text('يتم حفظ جميع العمليات آلياً في ذاكرة الهاتف لضمان أمان البيانات.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)),
               ],
             ),
-          ),
+          )
         ],
       ),
     );
