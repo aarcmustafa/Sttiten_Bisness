@@ -22,15 +22,26 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'الإدارة والمبيعات'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: 'الصندوق والتنبيهات'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'الإعدادات'),
-        ],
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        child: _screens[_currentIndex],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          selectedItemColor: const Color(0xFF1E3A8A),
+          unselectedItemColor: Colors.slate.shade400,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          onTap: (index) => setState(() => _currentIndex = index),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.storefront_rounded), label: 'الإدارة والمبيعات'),
+            BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'الصندوق والتنبيهات'),
+            BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: 'الإعدادات'),
+          ],
+        ),
       ),
     );
   }
