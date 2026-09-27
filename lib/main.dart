@@ -23,12 +23,20 @@ class StittenStoresApp extends StatelessWidget {
           primary: const Color(0xFF1E3A8A),
           secondary: const Color(0xFF0D9488),
           surface: const Color(0xFFF8FAFC),
+          onSurface: Colors.black87,
         ),
         scaffoldBackgroundColor: const Color(0xFFF1F5F9),
         cardTheme: CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           color: Colors.white,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          labelStyle: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+          hintStyle: TextStyle(color: Colors.grey.shade600),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: true,
