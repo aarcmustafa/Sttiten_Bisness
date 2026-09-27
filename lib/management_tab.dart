@@ -16,6 +16,8 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
   List<Map<String, dynamic>> sales = [];
   List<Map<String, dynamic>> customers = [];
 
+  String searchQuery = "";
+
   @override
   void initState() {
     super.initState();
@@ -25,23 +27,18 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
   Future<void> _loadAllData() async {
     final prefs = await SharedPreferences.getInstance();
-    
     List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     DateTime twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
     for (var sup in loadedSuppliers) {
       List invoices = sup['invoices'] ?? [];
-      invoices.removeWhere((inv) {
-        DateTime invDate = DateTime.parse(inv['date']);
-        return invDate.isBefore(twoMonthsAgo);
-      });
+      invoices.removeWhere((inv) => DateTime.parse(inv['date']).isBefore(twoMonthsAgo));
       sup['invoices'] = invoices;
     }
     suppliers = loadedSuppliers;
-    
     sales = (prefs.getStringList('sales_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     customers = (prefs.getStringList('customers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     
-    _saveAllData(); 
+    _saveAllData();
     setState(() {});
   }
 
@@ -57,83 +54,100 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('إضافة مورد جديد'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text('إضافة مورد جديد', style: TextStyle(fontWeight: FontWeight.bold)),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'الاسم الكامل')),
-        TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone),
+        TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم المورد', prefixIcon: Icon(Icons.person))),
+        const SizedBox(height: 10),
+        TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-        ElevatedButton(onPressed: () {
-          if (nameCtrl.text.isNotEmpty) {
-            suppliers.add({'id': DateTime.now().millisecondsSinceEpoch.toString(), 'name': nameCtrl.text, 'phone': phoneCtrl.text, 'invoices': []});
-            _saveAllData();
-            Navigator.pop(ctx);
-          }
-        }, child: const Text('إضافة'))
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+          onPressed: () {
+            if (nameCtrl.text.isNotEmpty) {
+              suppliers.add({'id': DateTime.now().millisecondsSinceEpoch.toString(), 'name': nameCtrl.text, 'phone': phoneCtrl.text, 'invoices': []});
+              _saveAllData();
+              Navigator.pop(ctx);
+            }
+          }, child: const Text('حفظ', style: TextStyle(color: Colors.white)))
       ],
     ));
   }
 
   void _manageSupplierInvoices(int index) {
-    showModalBottomSheet(context: context, isScrollControlled: true, builder: (ctx) {
+    showModalBottomSheet(context: context, isScrollControlled: true, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))), builder: (ctx) {
       return StatefulBuilder(builder: (BuildContext context, StateSetter setModalState) {
         double totalDebt = 0;
-        for (var inv in suppliers[index]['invoices']) {
-          totalDebt += (inv['remaining'] ?? 0);
-        }
+        for (var inv in suppliers[index]['invoices']) { totalDebt += (inv['remaining'] ?? 0); }
 
         return Container(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 10, right: 10),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 16, right: 16),
           height: MediaQuery.of(context).size.height * 0.8,
           child: Column(
             children: [
-              Text('فواتير: ${suppliers[index]['name']}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              Text('مجموع الدين الباقي: $totalDebt دج', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              ElevatedButton(
-                onPressed: () {
-                  final totalCtrl = TextEditingController();
-                  final paidCtrl = TextEditingController();
-                  showDialog(context: context, builder: (dCtx) => AlertDialog(
-                    title: const Text('إضافة فاتورة جديدة'),
-                    content: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Text('التاريخ آليا: ${DateFormat('yyyy-MM-dd').format(DateTime.now())}'),
-                      TextField(controller: totalCtrl, decoration: const InputDecoration(labelText: 'قيمة الفاتورة الكلية'), keyboardType: TextInputType.number),
-                      TextField(controller: paidCtrl, decoration: const InputDecoration(labelText: 'القيمة المدفوعة'), keyboardType: TextInputType.number),
-                    ]),
-                    actions: [
-                      ElevatedButton(onPressed: () {
-                        double total = double.tryParse(totalCtrl.text) ?? 0;
-                        double paid = double.tryParse(paidCtrl.text) ?? 0;
-                        double rem = total - paid;
-                        setModalState(() {
-                          suppliers[index]['invoices'].add({
-                            'date': DateTime.now().toIso8601String(),
-                            'total': total,
-                            'paid': paid,
-                            'remaining': rem,
-                          });
-                        });
-                        _saveAllData();
-                        Navigator.pop(dCtx);
-                      }, child: const Text('حفظ الفاتورة'))
-                    ],
-                  ));
-                }, 
-                child: const Text('إضافة فاتورة جديدة')
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+              const SizedBox(height: 15),
+              Text('فواتير المورد: ${suppliers[index]['name']}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12)),
+                child: Text('مجموع الدين المتبقي: $totalDebt دج', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
+              const SizedBox(height: 15),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), padding: const EdgeInsets.symmetric(vertical: 12)),
+                  icon: const Icon(Icons.add_receipt, color: Colors.white),
+                  label: const Text('إضافة فاتورة جديدة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    final totalCtrl = TextEditingController();
+                    final paidCtrl = TextEditingController();
+                    showDialog(context: context, builder: (dCtx) => AlertDialog(
+                      title: const Text('إضافة فاتورة'),
+                      content: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text('التاريخ آلياً: ${DateFormat('yyyy-MM-dd').format(DateTime.now())}', style: const TextStyle(color: Colors.grey)),
+                        TextField(controller: totalCtrl, decoration: const InputDecoration(labelText: 'القيمة الكلية للفاتورة'), keyboardType: TextInputType.number),
+                        TextField(controller: paidCtrl, decoration: const InputDecoration(labelText: 'المبلغ المدفوع'), keyboardType: TextInputType.number),
+                      ]),
+                      actions: [
+                        ElevatedButton(onPressed: () {
+                          double total = double.tryParse(totalCtrl.text) ?? 0;
+                          double paid = double.tryParse(paidCtrl.text) ?? 0;
+                          setModalState(() {
+                            suppliers[index]['invoices'].add({
+                              'date': DateTime.now().toIso8601String(),
+                              'total': total,
+                              'paid': paid,
+                              'remaining': total - paid,
+                            });
+                          });
+                          _saveAllData();
+                          Navigator.pop(dCtx);
+                        }, child: const Text('حفظ'))
+                      ],
+                    ));
+                  },
+                ),
+              ),
+              const SizedBox(height: 15),
               Expanded(
                 child: ListView.builder(
                   itemCount: suppliers[index]['invoices'].length,
                   itemBuilder: (c, i) {
                     var inv = suppliers[index]['invoices'][i];
-                    bool isZero = inv['remaining'] == 0;
+                    bool isPaid = inv['remaining'] == 0;
                     return Card(
-                      color: isZero ? Colors.green.shade50 : Colors.red.shade50,
+                      elevation: 1,
+                      color: isPaid ? Colors.green.shade50 : Colors.red.shade50,
+                      margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
-                        title: Text('التاريخ: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(inv['date']))}'),
-                        subtitle: Text('الكلية: ${inv['total']} | المدفوع: ${inv['paid']} \nالباقي دينا: ${inv['remaining']} دج', style: TextStyle(color: isZero ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
-                        trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () {
+                        title: Text('التاريخ: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(inv['date']))}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('الكلية: ${inv['total']} دج | المدفوع: ${inv['paid']} دج\nالباقي: ${inv['remaining']} دج'),
+                        trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () {
                           setModalState(() => suppliers[index]['invoices'].removeAt(i));
                           _saveAllData();
                         }),
@@ -152,17 +166,15 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
   void _addDailySale() {
     final amountCtrl = TextEditingController();
     showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Text('مبيعات اليوم: ${DateFormat('yyyy-MM-dd').format(DateTime.now())}'),
-      content: TextField(controller: amountCtrl, decoration: const InputDecoration(labelText: 'المبلغ نقداً'), keyboardType: TextInputType.number),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('مبيعات اليوم (${DateFormat('yyyy-MM-dd').format(DateTime.now())})'),
+      content: TextField(controller: amountCtrl, decoration: const InputDecoration(labelText: 'المبلغ النقدي (دج)', prefixIcon: Icon(Icons.money)), keyboardType: TextInputType.number),
       actions: [
-        ElevatedButton(onPressed: () {
-          sales.add({
-            'date': DateTime.now().toIso8601String(),
-            'amount': double.tryParse(amountCtrl.text) ?? 0
-          });
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)), onPressed: () {
+          sales.add({'date': DateTime.now().toIso8601String(), 'amount': double.tryParse(amountCtrl.text) ?? 0});
           _saveAllData();
           Navigator.pop(ctx);
-        }, child: const Text('حفظ'))
+        }, child: const Text('تسجيل المبيعات', style: TextStyle(color: Colors.white)))
       ],
     ));
   }
@@ -174,36 +186,26 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     
     showDialog(context: context, builder: (ctx) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
-        title: Text(isEmployee ? 'إضافة موظف' : 'إضافة زبون آخر'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(isEmployee ? 'إضافة موظف' : 'إضافة زبون عادي', style: const TextStyle(fontWeight: FontWeight.bold)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'الاسم الكامل')),
-          TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone),
-          const SizedBox(height: 15),
-          if (isEmployee)
-            ElevatedButton.icon(
-              icon: const Icon(Icons.calendar_month),
-              label: Text(startDate == null 
-                  ? 'اضغط لتحديد بداية الشهر' 
-                  : 'البداية: ${DateFormat('yyyy-MM-dd').format(startDate!)}'),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade100, 
-                  foregroundColor: Colors.black),
+          TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person))),
+          TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
+          if (isEmployee) ...[
+            const SizedBox(height: 15),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.calendar_month_rounded),
+              label: Text(startDate == null ? 'اختر بداية شهر الحساب' : 'البداية: ${DateFormat('yyyy-MM-dd').format(startDate!)}'),
               onPressed: () async {
-                DateTime? picked = await showDatePicker(
-                  context: context, 
-                  initialDate: DateTime.now(), 
-                  firstDate: DateTime(2020), 
-                  lastDate: DateTime(2030)
-                );
-                if (picked != null) {
-                  setDialogState(() => startDate = picked);
-                }
+                DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030));
+                if (picked != null) setDialogState(() => startDate = picked);
               },
             )
+          ]
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-          ElevatedButton(onPressed: () {
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)), onPressed: () {
             if (nameCtrl.text.isNotEmpty) {
               customers.add({
                 'id': DateTime.now().millisecondsSinceEpoch.toString(),
@@ -217,78 +219,102 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
               _saveAllData();
               Navigator.pop(ctx);
             }
-          }, child: const Text('حفظ'))
+          }, child: const Text('حفظ', style: TextStyle(color: Colors.white)))
         ],
       )
     ));
   }
 
   void _manageCustomer(int index) {
-    showModalBottomSheet(context: context, isScrollControlled: true, builder: (ctx) {
+    showModalBottomSheet(context: context, isScrollControlled: true, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))), builder: (ctx) {
       return StatefulBuilder(builder: (BuildContext context, StateSetter setModalState) {
         double currentPurchases = 0;
         for (var p in customers[index]['purchases']) { currentPurchases += (p['amount'] ?? 0); }
         double totalOwed = currentPurchases + (customers[index]['rolledOverDebt'] ?? 0);
 
         return Container(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 10, right: 10),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 16, right: 16),
           height: MediaQuery.of(context).size.height * 0.8,
           child: Column(
             children: [
-              Text('${customers[index]['name']}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              Text('المجموع المستحق: $totalOwed دج', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+              const SizedBox(height: 15),
+              Text(customers[index]['name'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
+                child: Text('المبلغ الكلي المستحق: $totalOwed دج', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              const SizedBox(height: 15),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  ElevatedButton(onPressed: () {
-                    final pCtrl = TextEditingController();
-                    showDialog(context: context, builder: (dCtx) => AlertDialog(
-                      title: const Text('إضافة شراء'),
-                      content: TextField(controller: pCtrl, keyboardType: TextInputType.number),
-                      actions: [
-                        ElevatedButton(onPressed: () {
-                          setModalState(() {
-                            customers[index]['purchases'].add({'date': DateTime.now().toIso8601String(), 'amount': double.tryParse(pCtrl.text) ?? 0});
-                          });
-                          _saveAllData();
-                          Navigator.pop(dCtx);
-                        }, child: const Text('حفظ'))
-                      ],
-                    ));
-                  }, child: const Text('إضافة عملية شراء')),
-                  
-                  if (customers[index]['isEmployee'])
-                    ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green), onPressed: () {
-                      final payCtrl = TextEditingController();
-                      showDialog(context: context, builder: (dCtx) => AlertDialog(
-                        title: const Text('تخليص الشهر (الحوصلة)'),
-                        content: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Text('المستحق الكلي: $totalOwed دج'),
-                          TextField(controller: payCtrl, decoration: const InputDecoration(labelText: 'قيمة السداد'), keyboardType: TextInputType.number),
-                        ]),
-                        actions: [
-                          ElevatedButton(onPressed: () {
-                            double paid = double.tryParse(payCtrl.text) ?? 0;
-                            double remaining = totalOwed - paid;
-                            setModalState(() {
-                              customers[index]['purchases'] = [];
-                              customers[index]['rolledOverDebt'] = remaining;
-                            });
-                            _saveAllData();
-                            Navigator.pop(dCtx);
-                          }, child: const Text('تأكيد السداد وترحيل الباقي'))
-                        ],
-                      ));
-                    }, child: const Text('حوصلة الشهر')),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+                      icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
+                      label: const Text('إضافة شراء', style: TextStyle(color: Colors.white)),
+                      onPressed: () {
+                        final pCtrl = TextEditingController();
+                        showDialog(context: context, builder: (dCtx) => AlertDialog(
+                          title: const Text('إضافة مبلغ شراء'),
+                          content: TextField(controller: pCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ دج')),
+                          actions: [
+                            ElevatedButton(onPressed: () {
+                              setModalState(() {
+                                customers[index]['purchases'].add({'date': DateTime.now().toIso8601String(), 'amount': double.tryParse(pCtrl.text) ?? 0});
+                              });
+                              _saveAllData();
+                              Navigator.pop(dCtx);
+                            }, child: const Text('حفظ'))
+                          ],
+                        ));
+                      },
+                    ),
+                  ),
+                  if (customers[index]['isEmployee']) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+                        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+                        label: const Text('حوصلة الشهر', style: TextStyle(color: Colors.white)),
+                        onPressed: () {
+                          final payCtrl = TextEditingController();
+                          showDialog(context: context, builder: (dCtx) => AlertDialog(
+                            title: const Text('تسديد وحوصلة الشهر'),
+                            content: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Text('الدين الإجمالي: $totalOwed دج'),
+                              TextField(controller: payCtrl, decoration: const InputDecoration(labelText: 'المبلغ المدفوع'), keyboardType: TextInputType.number),
+                            ]),
+                            actions: [
+                              ElevatedButton(onPressed: () {
+                                double paid = double.tryParse(payCtrl.text) ?? 0;
+                                setModalState(() {
+                                  customers[index]['purchases'] = [];
+                                  customers[index]['rolledOverDebt'] = totalOwed - paid;
+                                });
+                                _saveAllData();
+                                Navigator.pop(dCtx);
+                              }, child: const Text('حفظ وترحيل المتبقي'))
+                            ],
+                          ));
+                        },
+                      ),
+                    ),
+                  ]
                 ],
               ),
+              const SizedBox(height: 15),
               Expanded(
                 child: ListView.builder(
                   itemCount: customers[index]['purchases'].length,
-                  itemBuilder: (c, i) => ListTile(
-                    title: Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(customers[index]['purchases'][i]['date']))),
-                    trailing: Text('${customers[index]['purchases'][i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  )
+                  itemBuilder: (c, i) => Card(
+                    child: ListTile(
+                      title: Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(customers[index]['purchases'][i]['date']))),
+                      trailing: Text('${customers[index]['purchases'][i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
                 ),
               )
             ],
@@ -300,77 +326,60 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    var filteredSuppliers = suppliers.where((s) => s['name'].toString().contains(searchQuery)).toList();
+    var filteredCustomers = customers.where((c) => c['name'].toString().contains(searchQuery)).toList();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('الإدارة والمبيعات'),
+        title: const Text('مركز الإدارة والمبيعات'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [Tab(text: 'الموردين'), Tab(text: 'المبيعات'), Tab(text: 'الكريدي')],
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          tabs: const [Tab(text: 'الموردين'), Tab(text: 'المبيعات النقدية'), Tab(text: 'حسابات الكريدي')],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ElevatedButton.icon(onPressed: _addSupplier, icon: const Icon(Icons.add), label: const Text('إضافة مورد')),
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              onChanged: (val) => setState(() => searchQuery = val),
+              decoration: InputDecoration(
+                hintText: 'بحث سريع بالاسم...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
               ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: suppliers.length,
-                  itemBuilder: (ctx, i) => Card(child: ListTile(
-                    title: Text(suppliers[i]['name']),
-                    subtitle: Text(suppliers[i]['phone']),
-                    onTap: () => _manageSupplierInvoices(i),
-                  ))
-                ),
-              )
-            ],
+            ),
           ),
-          Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ElevatedButton.icon(onPressed: _addDailySale, icon: const Icon(Icons.add), label: const Text('إضافة مبيعات نقدية لليوم')),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: sales.length,
-                  itemBuilder: (ctx, i) => Card(child: ListTile(
-                    title: Text(DateFormat('yyyy-MM-dd').format(DateTime.parse(sales[i]['date']))),
-                    trailing: Text('${sales[i]['amount']} دج (نقداً)', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                  ))
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // قائمة الموردين
+                ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: filteredSuppliers.length,
+                  itemBuilder: (ctx, i) => Card(
+                    child: ListTile(
+                      leading: CircleAvatar(backgroundColor: const Color(0xFF1E3A8A).withOpacity(0.1), child: const Icon(Icons.business, color: Color(0xFF1E3A8A))),
+                      title: Text(filteredSuppliers[i]['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(filteredSuppliers[i]['phone']),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _manageSupplierInvoices(suppliers.indexOf(filteredSuppliers[i])),
+                    ),
+                  ),
                 ),
-              )
-            ],
-          ),
-          Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton(onPressed: () => _addCustomer(true), child: const Text('إضافة موظف')),
-                  ElevatedButton(onPressed: () => _addCustomer(false), child: const Text('إضافة زبون آخر')),
-                ],
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: customers.length,
-                  itemBuilder: (ctx, i) => Card(child: ListTile(
-                    title: Text('${customers[i]['name']} ${customers[i]['isEmployee'] ? "(موظف)" : ""}'),
-                    subtitle: customers[i]['isEmployee'] && customers[i]['startDate'] != null 
-                        ? Text('بداية الشهر: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(customers[i]['startDate']))}') 
-                        : null,
-                    onTap: () => _manageCustomer(i),
-                  ))
-                ),
-              )
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
+                // المبيعات النقدية
+                Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), padding: const EdgeI
