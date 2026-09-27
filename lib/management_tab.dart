@@ -22,6 +22,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
   String searchQuery = "";
   String customerFilter = "ALL";
+  
+  bool isManualMonthlyFilterEnabled = false;
+  String selectedFilterMonth = DateFormat('yyyy-MM').format(DateTime.now());
 
   @override
   void initState() {
@@ -34,6 +37,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     final prefs = await SharedPreferences.getInstance();
     DateTime sixtyDaysAgo = DateTime.now().subtract(const Duration(days: 60));
     DateTime seventyDaysAgo = DateTime.now().subtract(const Duration(days: 70));
+
+    isManualMonthlyFilterEnabled = prefs.getBool('manual_monthly_filter') ?? false;
+    selectedFilterMonth = prefs.getString('selected_filter_month') ?? DateFormat('yyyy-MM').format(DateTime.now());
 
     List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? [])
         .map((e) => jsonDecode(e) as Map<String, dynamic>)
@@ -68,6 +74,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
   Future<void> _saveAllData() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('manual_monthly_filter', isManualMonthlyFilterEnabled);
+    await prefs.setString('selected_filter_month', selectedFilterMonth);
+    
     await prefs.setStringList('suppliers_v2', suppliers.map((e) => jsonEncode(e)).toList());
     await prefs.setStringList('sales_v2', sales.map((e) => jsonEncode(e)).toList());
     await prefs.setStringList('customers_v2', customers.map((e) => jsonEncode(e)).toList());
@@ -101,7 +110,15 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
   double get _totalSalesCash {
     double total = 0;
-    for (var s in sales) { total += (s['amount'] ?? 0); }
+    for (var s in sales) { 
+      if (isManualMonthlyFilterEnabled) {
+        if (s['date'].toString().startsWith(selectedFilterMonth)) {
+          total += (s['amount'] ?? 0);
+        }
+      } else {
+        total += (s['amount'] ?? 0);
+      }
+    }
     return total;
   }
     void _addSupplier() {
@@ -147,8 +164,16 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) {
         return StatefulBuilder(builder: (BuildContext context, StateSetter setModalState) {
+          var invoices = suppliers[index]['invoices'] as List;
+          var displayedInvoices = invoices.where((inv) {
+            if (isManualMonthlyFilterEnabled) {
+              return inv['date'].toString().startsWith(selectedFilterMonth);
+            }
+            return true;
+          }).toList();
+
           double totalDebt = 0;
-          for (var inv in suppliers[index]['invoices']) { totalDebt += (inv['remaining'] ?? 0); }
+          for (var inv in invoices) { totalDebt += (inv['remaining'] ?? 0); }
 
           return Container(
             padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 16, right: 16),
@@ -219,9 +244,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                 const SizedBox(height: 15),
                 Expanded(
                   child: ListView.builder(
-                    itemCount: suppliers[index]['invoices'].length,
+                    itemCount: displayedInvoices.length,
                     itemBuilder: (c, i) {
-                      var inv = suppliers[index]['invoices'][i];
+                      var inv = displayedInvoices[i];
                       bool isPaid = inv['remaining'] == 0;
                       return Card(
                         elevation: 1,
@@ -233,7 +258,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.red),
                             onPressed: () {
-                              setModalState(() => suppliers[index]['invoices'].removeAt(i));
+                              setModalState(() => suppliers[index]['invoices'].remove(inv));
                               _saveAllData();
                             },
                           ),
@@ -352,8 +377,16 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) {
         return StatefulBuilder(builder: (BuildContext context, StateSetter setModalState) {
+          var purchases = customers[index]['purchases'] as List;
+          var displayedPurchases = purchases.where((p) {
+            if (isManualMonthlyFilterEnabled) {
+              return p['date'].toString().startsWith(selectedFilterMonth);
+            }
+            return true;
+          }).toList();
+
           double currentPurchases = 0;
-          for (var p in customers[index]['purchases']) { currentPurchases += (p['amount'] ?? 0); }
+          for (var p in purchases) { currentPurchases += (p['amount'] ?? 0); }
           double totalOwed = currentPurchases + (customers[index]['rolledOverDebt'] ?? 0);
 
           return Container(
@@ -408,7 +441,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // زر التصفية المبكرة أو الحوصلة (تلقائي أو يدوي)
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
@@ -417,14 +449,14 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                         onPressed: () {
                           final payCtrl = TextEditingController();
                           bool isManualFilter = false;
-                          List<bool> selectedPurchases = List.generate((customers[index]['purchases'] as List).length, (_) => false);
+                          List<bool> selectedPurchases = List.generate(purchases.length, (_) => false);
 
                           showDialog(
                             context: context,
                             builder: (dCtx) => StatefulBuilder(
                               builder: (context, setDialogState) => AlertDialog(
                                 backgroundColor: Colors.white,
-                                title: const Text('تسديد وتصفية الديون (قبل الاستحقاق)', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold, fontSize: 16)),
+                                title: const Text('تسديد وتصفية الديون', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold, fontSize: 16)),
                                 content: SizedBox(
                                   width: double.maxFinite,
                                   child: SingleChildScrollView(
@@ -447,7 +479,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                           TextField(
                                             controller: payCtrl,
                                             style: const TextStyle(color: Colors.black87),
-                                            decoration: const InputDecoration(labelText: 'المبلغ المدفوع (تصفية آلية جزئية أو كلية) (دج)'),
+                                            decoration: const InputDecoration(labelText: 'المبلغ المدفوع (دج)'),
                                             keyboardType: TextInputType.number,
                                           ),
                                         ] else ...[
@@ -457,9 +489,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                             height: 150,
                                             child: ListView.builder(
                                               shrinkWrap: true,
-                                              itemCount: (customers[index]['purchases'] as List).length,
+                                              itemCount: purchases.length,
                                               itemBuilder: (context, pIndex) {
-                                                var p = customers[index]['purchases'][pIndex];
+                                                var p = purchases[pIndex];
                                                 return CheckboxListTile(
                                                   dense: true,
                                                   title: Text('${p['amount']} دج (${p['date'].toString().substring(0, 10)})', style: const TextStyle(fontSize: 13)),
@@ -490,12 +522,11 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                         } else {
                                           double manualPaid = 0;
                                           List remainingPurchases = [];
-                                          List purchasesList = customers[index]['purchases'];
-                                          for (int i = 0; i < purchasesList.length; i++) {
+                                          for (int i = 0; i < purchases.length; i++) {
                                             if (selectedPurchases[i]) {
-                                              manualPaid += (purchasesList[i]['amount'] ?? 0);
+                                              manualPaid += (purchases[i]['amount'] ?? 0);
                                             } else {
-                                              remainingPurchases.add(purchasesList[i]);
+                                              remainingPurchases.add(purchases[i]);
                                             }
                                           }
                                           customers[index]['purchases'] = remainingPurchases;
@@ -519,12 +550,12 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                 const SizedBox(height: 15),
                 Expanded(
                   child: ListView.builder(
-                    itemCount: customers[index]['purchases'].length,
+                    itemCount: displayedPurchases.length,
                     itemBuilder: (c, i) => Card(
                       color: Colors.white,
                       child: ListTile(
-                        title: Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(customers[index]['purchases'][i]['date'])), style: const TextStyle(color: Colors.black87)),
-                        trailing: Text('${customers[index]['purchases'][i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A))),
+                        title: Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(displayedPurchases[i]['date'])), style: const TextStyle(color: Colors.black87)),
+                        trailing: Text('${displayedPurchases[i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A))),
                       ),
                     ),
                   ),
@@ -536,6 +567,66 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       },
     );
   }
+    void _openSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('إعدادات التصفية الشهرية للعمليات', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: const Text('تفعيل التصفية اليدوية الشهرية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('إلغاء التصفية التلقائية وعرض شهر محدد يدوياً لتخفيف زحمة الشاشة', style: TextStyle(fontSize: 12)),
+                value: isManualMonthlyFilterEnabled,
+                activeColor: const Color(0xFF1E3A8A),
+                onChanged: (val) {
+                  setDialogState(() => isManualMonthlyFilterEnabled = val);
+                },
+              ),
+              const SizedBox(height: 15),
+              if (isManualMonthlyFilterEnabled) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('اختر الشهر المستهدف:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                    TextButton(
+                      onPressed: () async {
+                        DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.parse('$selectedFilterMonth-01'),
+                          firstDate: DateTime(2023),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedFilterMonth = DateFormat('yyyy-MM').format(picked));
+                        }
+                      },
+                      child: Text(selectedFilterMonth, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+                    ),
+                  ],
+                )
+              ]
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+              onPressed: () {
+                _saveAllData();
+                Navigator.pop(ctx);
+              },
+              child: const Text('حفظ التعديلات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+    }
     @override
   Widget build(BuildContext context) {
     var filteredSuppliers = suppliers.where((s) => s['name'].toString().contains(searchQuery)).toList();
@@ -551,6 +642,13 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       appBar: AppBar(
         title: const Text('مركز الإدارة والمبيعات', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF1E3A8A),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            tooltip: 'إعدادات التصفية الشهرية',
+            onPressed: _openSettingsDialog,
+          )
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
@@ -593,7 +691,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.shade200)),
                     child: Column(
                       children: [
-                        const Text('المبيعات النقدية', style: TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.bold)),
+                        Text(isManualMonthlyFilterEnabled ? 'مبيعات شهر ($selectedFilterMonth)' : 'إجمالي المبيعات النقدية', style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.bold)),
                         Text('${_totalSalesCash.toStringAsFixed(0)} دج', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
                       ],
                     ),
@@ -675,33 +773,38 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        itemCount: sales.length,
-                        itemBuilder: (ctx, i) => Card(
-                          color: Colors.white,
-                          child: ListTile(
-                            leading: const Icon(Icons.monetization_on_rounded, color: Colors.green, size: 30),
-                            title: Text(DateFormat('yyyy-MM-dd').format(DateTime.parse(sales[i]['date'])), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('${sales[i]['amount']} دج', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
-                                IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
-                                  onPressed: () => _addOrEditDailySale(saleToEdit: sales[i], editIndex: i),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                  onPressed: () {
-                                    setState(() {
-                                      sales.removeAt(i);
-                                      _saveAllData();
-                                    });
-                                  },
-                                ),
-                              ],
+                        itemCount: sales.where((s) => isManualMonthlyFilterEnabled ? s['date'].toString().startsWith(selectedFilterMonth) : true).length,
+                        itemBuilder: (ctx, i) {
+                          var displayedSales = sales.where((s) => isManualMonthlyFilterEnabled ? s['date'].toString().startsWith(selectedFilterMonth) : true).toList();
+                          var sale = displayedSales[i];
+                          int originalIndex = sales.indexOf(sale);
+                          return Card(
+                            color: Colors.white,
+                            child: ListTile(
+                              leading: const Icon(Icons.monetization_on_rounded, color: Colors.green, size: 30),
+                              title: Text(DateFormat('yyyy-MM-dd').format(DateTime.parse(sale['date'])), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('${sale['amount']} دج', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                                    onPressed: () => _addOrEditDailySale(saleToEdit: sale, editIndex: originalIndex),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                    onPressed: () {
+                                      setState(() {
+                                        sales.removeAt(originalIndex);
+                                        _saveAllData();
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     )
                   ],
