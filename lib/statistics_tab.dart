@@ -40,47 +40,52 @@ class _StatisticsTabState extends State<StatisticsTab> {
     double mCosts = 0, aCosts = 0;
     List<String> tempAlerts = [];
 
-    // تنبيهات الموظفين (حل يوم التخليص بعد مرور شهر)
+    DateTime? nextMonthDate;
+    DateTime? nextYearDate;
+    if (treasuryStartDate != null) {
+      nextMonthDate = DateTime(treasuryStartDate!.year, treasuryStartDate!.month + 1, treasuryStartDate!.day);
+      nextYearDate = DateTime(treasuryStartDate!.year + 1, treasuryStartDate!.month, treasuryStartDate!.day);
+    }
+
     for (var cust in customers) {
       if (cust['isEmployee'] == true && cust['startDate'] != null) {
         DateTime sDate = DateTime.parse(cust['startDate']);
-        if (now.difference(sDate).inDays >= 30) {
+        DateTime deadline = DateTime(sDate.year, sDate.month + 1, sDate.day);
+        
+        if (now.isAfter(deadline) || now.isAtSameMomentAs(deadline)) {
           tempAlerts.add('حان موعد تخليص الموظف: ${cust['name']}');
         }
       }
     }
 
-    // حساب المبيعات النقدية
     for (var sale in sales) {
       DateTime sDate = DateTime.parse(sale['date']);
       if (sDate.year == now.year && sDate.month == now.month && sDate.day == now.day) tSales += sale['amount'];
       
-      if (treasuryStartDate != null) {
-        if (sDate.isAfter(treasuryStartDate!) && sDate.isBefore(treasuryStartDate!.add(const Duration(days: 30)))) mSales += sale['amount'];
-        if (sDate.isAfter(treasuryStartDate!) && sDate.isBefore(treasuryStartDate!.add(const Duration(days: 365)))) aSales += sale['amount'];
+      if (treasuryStartDate != null && nextMonthDate != null && nextYearDate != null) {
+        if (sDate.isAfter(treasuryStartDate!) && sDate.isBefore(nextMonthDate)) mSales += sale['amount'];
+        if (sDate.isAfter(treasuryStartDate!) && sDate.isBefore(nextYearDate)) aSales += sale['amount'];
       }
     }
     
-    // حساب مبيعات الكريدي (الحوصلة اليومية تشملها)
     for(var cust in customers) {
       for(var pur in cust['purchases']) {
         DateTime pDate = DateTime.parse(pur['date']);
         if (pDate.year == now.year && pDate.month == now.month && pDate.day == now.day) tSales += pur['amount'];
         
-        if (treasuryStartDate != null) {
-          if (pDate.isAfter(treasuryStartDate!) && pDate.isBefore(treasuryStartDate!.add(const Duration(days: 30)))) mSales += pur['amount'];
-          if (pDate.isAfter(treasuryStartDate!) && pDate.isBefore(treasuryStartDate!.add(const Duration(days: 365)))) aSales += pur['amount'];
+        if (treasuryStartDate != null && nextMonthDate != null && nextYearDate != null) {
+          if (pDate.isAfter(treasuryStartDate!) && pDate.isBefore(nextMonthDate)) mSales += pur['amount'];
+          if (pDate.isAfter(treasuryStartDate!) && pDate.isBefore(nextYearDate)) aSales += pur['amount'];
         }
       }
     }
 
-    // حساب التكاليف من الموردين (الفواتير الكلية)
-    if (treasuryStartDate != null) {
+    if (treasuryStartDate != null && nextMonthDate != null && nextYearDate != null) {
       for (var sup in suppliers) {
         for (var inv in sup['invoices']) {
           DateTime iDate = DateTime.parse(inv['date']);
-          if (iDate.isAfter(treasuryStartDate!) && iDate.isBefore(treasuryStartDate!.add(const Duration(days: 30)))) mCosts += inv['total'];
-          if (iDate.isAfter(treasuryStartDate!) && iDate.isBefore(treasuryStartDate!.add(const Duration(days: 365)))) aCosts += inv['total'];
+          if (iDate.isAfter(treasuryStartDate!) && iDate.isBefore(nextMonthDate)) mCosts += inv['total'];
+          if (iDate.isAfter(treasuryStartDate!) && iDate.isBefore(nextYearDate)) aCosts += inv['total'];
         }
       }
     }
@@ -98,7 +103,10 @@ class _StatisticsTabState extends State<StatisticsTab> {
   Widget _buildResultRow(String label, double salesAmount, double costsAmount, bool isAnnual) {
     if (treasuryStartDate == null) return Text('$label: لم تحن بعد', style: const TextStyle(fontSize: 16));
     
-    DateTime targetDate = isAnnual ? treasuryStartDate!.add(const Duration(days: 365)) : treasuryStartDate!.add(const Duration(days: 30));
+    DateTime targetDate = isAnnual 
+        ? DateTime(treasuryStartDate!.year + 1, treasuryStartDate!.month, treasuryStartDate!.day)
+        : DateTime(treasuryStartDate!.year, treasuryStartDate!.month + 1, treasuryStartDate!.day);
+        
     if (DateTime.now().isBefore(targetDate)) {
       return Text('$label: لم تحن بعد (تكتمل في ${DateFormat('yyyy-MM-dd').format(targetDate)})', style: const TextStyle(fontSize: 16));
     }
