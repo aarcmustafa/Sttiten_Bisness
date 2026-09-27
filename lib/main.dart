@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'lock_screen.dart';
+import 'screens/lock_screen.dart';
 
 void main() {
   runApp(const StittenStoresApp());
