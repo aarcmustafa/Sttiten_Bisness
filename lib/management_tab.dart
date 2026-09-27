@@ -9,11 +9,15 @@ class ManagementTab extends StatefulWidget {
 }
 
 class _ManagementTabState extends State<ManagementTab> {
-  // إعدادات البداية للحوصلات (تلقائي أو تاريخ مخصص)
   bool isManualStartDate = false;
   String manualStartDateStr = "2026-01-01";
 
-  // دالة عامة لتأكيد الحذف
+  // متغيرات البحث والفلترة لكل تبويب
+  String salesSearchQuery = "";
+  String suppliersSearchQuery = "";
+  String creditSearchQuery = "";
+  String creditTypeFilter = "الكل"; // الكل، زبون، موظف
+
   void showDeleteConfirmation(BuildContext context, VoidCallback onConfirm) {
     showDialog(
       context: context,
@@ -35,8 +39,7 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    // --- نافذة إضافة مبيعات نقدية ---
-  void _addDailySaleDialog() {
+    void _addDailySaleDialog() {
     final amountCtrl = TextEditingController();
     final _formKey = GlobalKey<FormState>();
 
@@ -78,7 +81,6 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  // --- نافذة تعديل مبيعات نقدية ---
   void _editDailySaleDialog(int index, Map item) {
     final amountCtrl = TextEditingController(text: item['amount'].toString());
     final _formKey = GlobalKey<FormState>();
@@ -120,8 +122,37 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    // --- نافذة إضافة مورد وفاتورة ---
-  void _addSupplierDialog() {
+
+  // دالة تصفية مبيعات اليوم ونقلها للأرشيف الخاص (مع حماية الحوصلة وعدم تأثرها)
+  void _archiveDailySales(Box salesBox) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تصفية وأرشفة مبيعات اليوم', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+        content: const Text('هل تريد تصفية قائمة المبيعات الحالية للبدء من جديد ونقلها لقسم الأرشيف؟ (ملاحظة: الحوصلة الشهرية والسنوية ستتذكر كل هذه العمليات ولن تتأثر أبداً بالتصفية).'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800]),
+            onPressed: () async {
+              var archiveBox = await Hive.openBox('archivedSalesBox');
+              for (var i = 0; i < salesBox.length; i++) {
+                archiveBox.add(salesBox.getAt(i));
+              }
+              await salesBox.clear();
+              setState(() {});
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('تمت أرشفة مبيعات اليوم وتصفية القائمة بنجاح')),
+              );
+            },
+            child: const Text('تأكيد التصفية', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+    void _addSupplierDialog() {
     final nameCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
     final _formKey = GlobalKey<FormState>();
@@ -129,7 +160,7 @@ class _ManagementTabState extends State<ManagementTab> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('إضافة فاتورة توريد / للمورد', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+        title: const Text('إضافة فاتورة مورد / للمورد', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
         content: Form(
           key: _formKey,
           child: Column(
@@ -176,7 +207,6 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  // --- نافذة تعديل الموردين ---
   void _editSupplierDialog(int index, Map item) {
     final nameCtrl = TextEditingController(text: item['name']);
     final amountCtrl = TextEditingController(text: item['amount'].toString());
@@ -232,7 +262,6 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  // --- نافذة إضافة كريدي ---
   void _addCreditDialog() {
     String type = 'زبون';
     final nameCtrl = TextEditingController();
@@ -302,7 +331,6 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  // --- نافذة تعديل الكريدي ---
   void _editCreditDialog(int index, Map item) {
     String type = item['type'] ?? 'زبون';
     final nameCtrl = TextEditingController(text: item['name']);
@@ -372,20 +400,22 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  // --- نافذة إعدادات نقطة البداية للحوصلات ---
   void _showSettingsDialog() {
     final dateCtrl = TextEditingController(text: manualStartDateStr);
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('إعدادات حساب الحوصلة', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+          title: const Text('إعدادات الأرشيف والحوصلة', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Text('• نظام الأرشيف والذاكرة:\n- المبيعات: تصفية يومية يدوية مع تذكر الحوصلة لكل العمليات.\n- الموردين: أرشيف آخر 60 يوماً.\n- الكريدي: أرشيف آخر 70 يوماً.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const Divider(),
               SwitchListTile(
-                title: const Text('تحديد تاريخ بداية يدوي'),
-                subtitle: Text(isManualStartDate ? 'الاعتماد على التاريخ المخصص' : 'تلقائي (من أول عملية)'),
+                title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
+                subtitle: Text(isManualStartDate ? 'مفعل (تاريخ مخصص)' : 'تلقائي (حسب الشهر والسنة)'),
                 value: isManualStartDate,
                 activeColor: const Color(0xFF0D9488),
                 onChanged: (val) {
@@ -417,15 +447,14 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    // --- مكون الحوصلة المالية الشهرية والسنوية ---
-  Widget buildFinancialSummaryCard() {
+    Widget buildFinancialSummaryCard() {
     return AnimatedBuilder(
       animation: Listenable.merge([
         Hive.box('salesBox').listenable(),
         Hive.box('suppliersBox').listenable(),
       ]),
       builder: (context, _) {
-        final salesBox = Hive.box('salesBox');
+        final salesBox = Hive.box('salesBox'); // يحتفظ بذاكرة العمليات كاملة للحوصلة حتى لو تمت التصفية اليومية
         final suppliersBox = Hive.box('suppliersBox');
 
         String currentMonth = DateTime.now().toString().substring(0, 7);
@@ -482,7 +511,6 @@ class _ManagementTabState extends State<ManagementTab> {
               ),
               const Divider(),
               const SizedBox(height: 5),
-              // الحوصلة الشهرية
               Row(
                 mainAxisAlignment: MainAxisAlignment.between,
                 children: [
@@ -499,7 +527,6 @@ class _ManagementTabState extends State<ManagementTab> {
               ),
               Text('المبيعات: $monthlySales دج | التوريد: $monthlyCost دج', style: const TextStyle(color: Colors.grey, fontSize: 12)),
               const SizedBox(height: 12),
-              // الحوصلة السنوية
               Row(
                 mainAxisAlignment: MainAxisAlignment.between,
                 children: [
@@ -520,9 +547,13 @@ class _ManagementTabState extends State<ManagementTab> {
         );
       },
     );
-  }
+    }
     @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final sixtyDaysAgo = now.subtract(const Duration(days: 60));
+    final seventyDaysAgo = now.subtract(const Duration(days: 70));
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -540,17 +571,32 @@ class _ManagementTabState extends State<ManagementTab> {
         ),
         body: TabBarView(
           children: [
-            // --- تبويب المبيعات والحوصلة ---
+            // --- تبويب المبيعات (مع زر التصفية والأرشفة اليومية) ---
             Column(
               children: [
                 buildFinancialSummaryCard(),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
-                    onPressed: _addDailySaleDialog,
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('تسجيل مبيعات نقدية جديدة', style: TextStyle(color: Colors.white)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 2.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(42)),
+                          onPressed: _addDailySaleDialog,
+                          icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                          label: const Text('إضافة مبيعات', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800], minimumSize: const Size.fromHeight(42)),
+                          onPressed: () => _archiveDailySales(Hive.box('salesBox')),
+                          icon: const Icon(Icons.archive, color: Colors.white, size: 18),
+                          label: const Text('تصفية وأرشفة يومية', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(
@@ -558,7 +604,7 @@ class _ManagementTabState extends State<ManagementTab> {
                     valueListenable: Hive.box('salesBox').listenable(),
                     builder: (context, Box box, _) {
                       if (box.isEmpty) {
-                        return const Center(child: Text('لا توجد مبيعات مسجلة', style: TextStyle(color: Colors.grey)));
+                        return const Center(child: Text('قائمة مبيعات اليوم فارغة (تمت تصفيتها أو أُضيفت حديثاً)', style: TextStyle(color: Colors.grey)));
                       }
                       return ListView.builder(
                         itemCount: box.length,
@@ -595,28 +641,53 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الموردين والتوريد ---
+            // --- تبويب الموردين (مع البحث وأرشيف 60 يوماً) ---
             Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(12.0),
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
-                    onPressed: _addSupplierDialog,
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('إضافة فاتورة مورد / توريد جديد', style: TextStyle(color: Colors.white)),
+                  child: Column(
+                    children: [
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
+                        onPressed: _addSupplierDialog,
+                        icon: const Icon(Icons.add, color: Colors.white),
+                        label: const Text('إضافة فاتورة مورد / توريد جديد', style: TextStyle(color: Colors.white)),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'البحث عن مورد بالاسم...',
+                          prefixIcon: Icon(Icons.search, color: Color(0xFF0D9488)),
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (val) => setState(() => suppliersSearchQuery = val.trim()),
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(
                   child: ValueListenableBuilder(
                     valueListenable: Hive.box('suppliersBox').listenable(),
                     builder: (context, Box box, _) {
-                      if (box.isEmpty) {
-                        return const Center(child: Text('لا يوجد موردون مسجلون', style: TextStyle(color: Colors.grey)));
+                      List<int> validIndices = [];
+                      for (int i = 0; i < box.length; i++) {
+                        var item = box.getAt(i);
+                        DateTime itemDate = DateTime.parse(item['date'] ?? now.toIso8601String());
+                        String name = item['name'] ?? '';
+                        if (itemDate.isAfter(sixtyDaysAgo) && name.contains(suppliersSearchQuery)) {
+                          validIndices.add(i);
+                        }
+                      }
+
+                      if (validIndices.isEmpty) {
+                        return const Center(child: Text('لا توجد نتائج مطابقة في أرشيف الموردين (60 يوم)', style: TextStyle(color: Colors.grey)));
                       }
                       return ListView.builder(
-                        itemCount: box.length,
-                        itemBuilder: (context, index) {
+                        itemCount: validIndices.length,
+                        itemBuilder: (context, idx) {
+                          int index = validIndices[idx];
                           final item = box.getAt(index);
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -649,28 +720,78 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الكريدي (الزبائن والموظفين) ---
+            // --- تبويب الكريدي (مع البحث، فلترة النوع، وأرشيف 70 يوماً) ---
             Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(12.0),
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
-                    onPressed: _addCreditDialog,
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('تسجيل كريدي جديد', style: TextStyle(color: Colors.white)),
+                  child: Column(
+                    children: [
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
+                        onPressed: _addCreditDialog,
+                        icon: const Icon(Icons.add, color: Colors.white),
+                        label: const Text('تسجيل كريدي جديد', style: TextStyle(color: Colors.white)),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              decoration: const InputDecoration(
+                                hintText: 'بحث بالاسم...',
+                                prefixIcon: Icon(Icons.search, color: Color(0xFF0D9488)),
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (val) => setState(() => creditSearchQuery = val.trim()),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 1,
+                            child: DropdownButtonFormField<String>(
+                              value: creditTypeFilter,
+                              decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                              items: const [
+                                DropdownMenuItem(value: 'الكل', child: Text('الكل')),
+                                DropdownMenuItem(value: 'زبون', child: Text('زبون')),
+                                DropdownMenuItem(value: 'موظف', child: Text('موظف')),
+                              ],
+                              onChanged: (val) => setState(() => creditTypeFilter = val!),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(
                   child: ValueListenableBuilder(
                     valueListenable: Hive.box('customersBox').listenable(),
                     builder: (context, Box box, _) {
-                      if (box.isEmpty) {
-                        return const Center(child: Text('لا توجد سجلات كريدي نشطة', style: TextStyle(color: Colors.grey)));
+                      List<int> validIndices = [];
+                      for (int i = 0; i < box.length; i++) {
+                        var item = box.getAt(i);
+                        DateTime itemDate = DateTime.parse(item['date'] ?? now.toIso8601String());
+                        String name = item['name'] ?? '';
+                        String type = item['type'] ?? 'زبون';
+
+                        bool matchesType = (creditTypeFilter == 'الكل' || type == creditTypeFilter);
+                        bool matchesSearch = name.contains(creditSearchQuery);
+                        if (itemDate.isAfter(seventyDaysAgo) && matchesType && matchesSearch) {
+                          validIndices.add(i);
+                        }
+                      }
+
+                      if (validIndices.isEmpty) {
+                        return const Center(child: Text('لا توجد سجلات كريدي مطابقة في أرشيف 70 يوماً', style: TextStyle(color: Colors.grey)));
                       }
                       return ListView.builder(
-                        itemCount: box.length,
-                        itemBuilder: (context, index) {
+                        itemCount: validIndices.length,
+                        itemBuilder: (context, idx) {
+                          int index = validIndices[idx];
                           final item = box.getAt(index);
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
