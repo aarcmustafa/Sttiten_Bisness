@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'statistics_tab.dart';
 import 'management_tab.dart';
+import 'statistics_tab.dart';
 import 'settings_tab.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,8 +14,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const StatisticsTab(),
     const ManagementTab(),
+    const StatisticsTab(),
     const SettingsTab(),
   ];
 
@@ -27,9 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'الإحصائيات'),
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'الإدارة والكريدي'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'الإعدادات وحول'),
+          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'الإدارة والمبيعات'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: 'الصندوق والتنبيهات'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'الإعدادات'),
         ],
       ),
     );
