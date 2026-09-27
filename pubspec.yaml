@@ -1,8 +1,8 @@
 name: stitten_bisness
 description: "A new Flutter project for managing business, debts, and suppliers."
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none'
 
-version: 2.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -10,7 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  shared_preferences: ^2.2.3
+  flutter_localizations:
+    sdk: flutter
+  shared_preferences: ^2.3.2
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:
