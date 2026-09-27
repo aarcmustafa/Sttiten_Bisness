@@ -9,10 +9,11 @@ class ManagementTab extends StatefulWidget {
 }
 
 class _ManagementTabState extends State<ManagementTab> {
-  bool isManualFilter = false;
-  String selectedMonth = "2026-09";
+  // إعدادات البداية للحوصلات (تلقائي أو تاريخ مخصص)
+  bool isManualStartDate = false;
+  String manualStartDateStr = "2026-01-01"; // تاريخ تجريبي افتراضي للبداية اليدوية
 
-  // دالة عامة لتأكيد الحذف قبل التنفيذ نهائياً
+  // دالة عامة لتأكيد الحذف
   void showDeleteConfirmation(BuildContext context, VoidCallback onConfirm) {
     showDialog(
       context: context,
@@ -62,9 +63,8 @@ class _ManagementTabState extends State<ManagementTab> {
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
             onPressed: () {
               if (_formKey.currentState!.validate()) {
-                double amount = double.parse(amountCtrl.text);
                 Hive.box('salesBox').add({
-                  'amount': amount,
+                  'amount': double.parse(amountCtrl.text),
                   'date': DateTime.now().toIso8601String(),
                 });
                 setState(() {});
@@ -77,7 +77,8 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    // --- نافذة إضافة مورد وفاتورة ---
+
+  // --- نافذة إضافة مورد وفاتورة (تكلفة التوريد) ---
   void _addSupplierDialog() {
     final nameCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
@@ -86,7 +87,7 @@ class _ManagementTabState extends State<ManagementTab> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('إضافة مورد وفاتورة جديدة', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+        title: const Text('إضافة فاتورة توريد / للمورد', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
         content: Form(
           key: _formKey,
           child: Column(
@@ -101,7 +102,7 @@ class _ManagementTabState extends State<ManagementTab> {
               TextFormField(
                 controller: amountCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'قيمة الفاتورة/الدين (دج)', prefixIcon: Icon(Icons.receipt, color: Color(0xFF0D9488))),
+                decoration: const InputDecoration(labelText: 'قيمة التوريد/الفاتورة (دج)', prefixIcon: Icon(Icons.receipt, color: Color(0xFF0D9488))),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) return 'المبلغ مطلوب';
                   if (double.tryParse(value) == null || double.parse(value) < 0) return 'أدخل مبلغاً صالحاً';
@@ -132,7 +133,7 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    // --- نافذة إضافة كريدي / زبون أو موظف ---
+    // --- نافذة إضافة كريدي (زبون / موظف) ---
   void _addCreditDialog() {
     String type = 'زبون';
     final nameCtrl = TextEditingController();
@@ -201,6 +202,158 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
+
+  // --- نافذة إعدادات نقطة بداية احتساب العمليات والحوصلات ---
+  void _showSettingsDialog() {
+    final dateCtrl = TextEditingController(text: manualStartDateStr);
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('إعدادات حساب الحوصلة', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: const Text('تحديد تاريخ بداية يدوي'),
+                subtitle: Text(isManualStartDate ? 'الاعتماد على التاريخ المخصص أدناه' : 'تلقائي (من أول عملية مسجلة)'),
+                value: isManualStartDate,
+                activeColor: const Color(0xFF0D9488),
+                onChanged: (val) {
+                  setDialogState(() => isManualStartDate = val);
+                  setState(() {});
+                },
+              ),
+              if (isManualStartDate) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: dateCtrl,
+                  decoration: const InputDecoration(labelText: 'تاريخ البداية (YYYY-MM-DD)', prefixIcon: Icon(Icons.date_range)),
+                  onChanged: (val) => manualStartDateStr = val,
+                ),
+              ]
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+              onPressed: () {
+                setState(() {});
+                Navigator.pop(ctx);
+              },
+              child: const Text('تم', style: TextStyle(color: Colors.white)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+    // --- مكون الحوصلة المالية الشهرية والسنوية مع حساب الربح/الخسارة ---
+  Widget buildFinancialSummaryCard() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        Hive.box('salesBox').listenable(),
+        Hive.box('suppliersBox').listenable(),
+      ]),
+      builder: (context, _) {
+        final salesBox = Hive.box('salesBox');
+        final suppliersBox = Hive.box('suppliersBox');
+
+        String currentMonth = DateTime.now().toString().substring(0, 7); // مثل "2026-09"
+        String currentYear = DateTime.now().toString().substring(0, 4);   // مثل "2026"
+
+        double monthlySales = 0.0;
+        double monthlyCost = 0.0;
+        double yearlySales = 0.0;
+        double yearlyCost = 0.0;
+
+        // حساب مبيعات وتكاليف الشهر الحالي
+        for (var i = 0; i < salesBox.length; i++) {
+          var item = salesBox.getAt(i);
+          String date = item['date'] ?? '';
+          if (date.startsWith(currentMonth)) {
+            monthlySales += (item['amount'] ?? 0.0);
+          }
+          if (date.startsWith(currentYear)) {
+            yearlySales += (item['amount'] ?? 0.0);
+          }
+        }
+
+        // حساب تكاليف التوريد للشهر الحالي والسنة الحالية
+        for (var i = 0; i < suppliersBox.length; i++) {
+          var item = suppliersBox.getAt(i);
+          String date = item['date'] ?? '';
+          if (date.startsWith(currentMonth)) {
+            monthlyCost += (item['amount'] ?? 0.0);
+          }
+          if (date.startsWith(currentYear)) {
+            yearlyCost += (item['amount'] ?? 0.0);
+          }
+        }
+
+        double monthlyNet = monthlySales - monthlyCost;
+        double yearlyNet = yearlySales - yearlyCost;
+
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF0D9488), width: 1.5),
+            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), blurRadius: 6, offset: const Offset(0, 3))],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.between,
+                children: [
+                  const Text('الحوصلة المالية (مبيعات - توريد)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D9488))),
+                  IconButton(icon: const Icon(Icons.settings, size: 20, color: Colors.grey), onPressed: _showSettingsDialog)
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 5),
+              // الحوصلة الشهرية
+              Row(
+                mainAxisAlignment: MainAxisAlignment.between,
+                children: [
+                  const Text('الشهر الحالي:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'ربح/خسارة: ${monthlyNet.toStringAsFixed(2)} دج',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: monthlyNet >= 0 ? Colors.green[700] : Colors.red[700], // تلوين أخضر للربح وأحمر للخسارة
+                    ),
+                  ),
+                ],
+              ),
+              Text('المبيعات: $monthlySales دج | التوريد: $monthlyCost دج', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 12),
+              // الحوصلة السنوية
+              Row(
+                mainAxisAlignment: MainAxisAlignment.between,
+                children: [
+                  const Text('السنة الحالية:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'ربح/خسارة: ${yearlyNet.toStringAsFixed(2)} دج',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: yearlyNet >= 0 ? Colors.green[700] : Colors.red[700],
+                    ),
+                  ),
+                ],
+              ),
+              Text('المبيعات: $yearlySales دج | التوريد: $yearlyCost دج', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
+        );
+      },
+    );
+  }
     @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -208,18 +361,11 @@ class _ManagementTabState extends State<ManagementTab> {
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: const Color(0xFF0D9488),
-          title: Text(isManualFilter ? 'إدارة المتجر (شهر: $selectedMonth)' : 'إدارة المتجر والمبيعات اليومية'),
-          actions: [
-            IconButton(
-              icon: Icon(isManualFilter ? Icons.filter_alt : Icons.filter_alt_off),
-              tooltip: 'تبديل وضع التصفية (تلقائي / يدوي)',
-              onPressed: () => setState(() => isManualFilter = !isManualFilter),
-            ),
-          ],
+          title: const Text('إدارة المتجر والحوصلات الذكية'),
           bottom: const TabBar(
             indicatorColor: Colors.white,
             tabs: [
-              Tab(icon: Icon(Icons.point_of_sale), text: 'المبيعات'),
+              Tab(icon: Icon(Icons.point_of_sale), text: 'المبيعات والحوصلة'),
               Tab(icon: Icon(Icons.local_shipping), text: 'الموردين'),
               Tab(icon: Icon(Icons.people), text: 'الكريدي'),
             ],
@@ -227,16 +373,17 @@ class _ManagementTabState extends State<ManagementTab> {
         ),
         body: TabBarView(
           children: [
-            // --- تبويب المبيعات النقدية ---
+            // --- تبويب المبيعات والحوصلة الشهرية والسنوية ---
             Column(
               children: [
+                buildFinancialSummaryCard(),
                 Padding(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
                   child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
                     onPressed: _addDailySaleDialog,
                     icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('إضافة مبيعات نقدية جديدة', style: TextStyle(color: Colors.white)),
+                    label: const Text('تسجيل مبيعات نقدية جديدة', style: TextStyle(color: Colors.white)),
                   ),
                 ),
                 Expanded(
@@ -244,18 +391,18 @@ class _ManagementTabState extends State<ManagementTab> {
                     valueListenable: Hive.box('salesBox').listenable(),
                     builder: (context, Box box, _) {
                       if (box.isEmpty) {
-                        return const Center(child: Text('لا توجد مبيعات مسجلة حالياً', style: TextStyle(color: Colors.grey)));
+                        return const Center(child: Text('لا توجد مبيعات مسجلة', style: TextStyle(color: Colors.grey)));
                       }
                       return ListView.builder(
                         itemCount: box.length,
                         itemBuilder: (context, index) {
                           final item = box.getAt(index);
                           return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             child: ListTile(
                               leading: const CircleAvatar(backgroundColor: Color(0xFF0D9488), child: Icon(Icons.attach_money, color: Colors.white)),
                               title: Text('المبلغ: ${item['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text('التاريخ: ${item['date'].toString().substring(0, 10)}'),
+                              subtitle: Text('التاريخ: ${item['date'].toString().substring(0, 16)}'),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => showDeleteConfirmation(context, () => box.deleteAt(index)),
@@ -270,16 +417,16 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الموردين ---
+            // --- تبويب الموردين والتوريد ---
             Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
                     onPressed: _addSupplierDialog,
                     icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('إضافة مورد جديد', style: TextStyle(color: Colors.white)),
+                    label: const Text('إضافة فاتورة مورد / توريد جديد', style: TextStyle(color: Colors.white)),
                   ),
                 ),
                 Expanded(
@@ -294,11 +441,11 @@ class _ManagementTabState extends State<ManagementTab> {
                         itemBuilder: (context, index) {
                           final item = box.getAt(index);
                           return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             child: ListTile(
                               leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.store, color: Colors.white)),
                               title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text('الدين المتبقي: ${item['amount']} دج'),
+                              subtitle: Text('قيمة التوريد: ${item['amount']} دج | التاريخ: ${item['date'].toString().substring(0, 10)}'),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => showDeleteConfirmation(context, () => box.deleteAt(index)),
@@ -319,7 +466,7 @@ class _ManagementTabState extends State<ManagementTab> {
                 Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
                     onPressed: _addCreditDialog,
                     icon: const Icon(Icons.add, color: Colors.white),
                     label: const Text('تسجيل كريدي جديد', style: TextStyle(color: Colors.white)),
@@ -337,7 +484,7 @@ class _ManagementTabState extends State<ManagementTab> {
                         itemBuilder: (context, index) {
                           final item = box.getAt(index);
                           return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: item['type'] == 'موظف' ? Colors.orange : Colors.indigo,
