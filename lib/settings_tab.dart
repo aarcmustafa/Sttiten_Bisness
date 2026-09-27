@@ -49,10 +49,46 @@ class _SettingsTabState extends State<SettingsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D9488),
+        title: const Text('إعدادات التطبيق والأرشيف', style: TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildSecuritySection(),
+            const Divider(height: 30),
+            
+            _buildAppearanceSection(),
+            const Divider(height: 30),
+            
+            _buildArchiveInfoSection(),
+            const Divider(height: 30),
+            
+            _buildFinancialSettingsSection(),
+            const Divider(height: 30),
+            
+            _buildDataManagementSection(context),
+            const Divider(height: 30),
+            
+            _buildAboutSection(),
+            const SizedBox(height: 40),
+            
+            _buildSaveButton(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- 1. قسم نظام الحماية والأمان ---
+  Widget _buildSecuritySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- 1. نظام الحماية والأمان ---
         const Text('🔒 نظام الحماية والأمان', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
         const SizedBox(height: 5),
         SwitchListTile(
@@ -77,9 +113,15 @@ class _SettingsTabState extends State<SettingsTab> {
             ),
           ),
         ],
-        const Divider(height: 30),
+      ],
+    );
+  }
 
-        // --- 2. المظهر (ليلي أو نهاري) ---
+  // --- 2. قسم المظهر والوضعية ---
+  Widget _buildAppearanceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const Text('🎨 المظهر والوضعية', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
         const SizedBox(height: 5),
         SwitchListTile(
@@ -89,20 +131,32 @@ class _SettingsTabState extends State<SettingsTab> {
           activeColor: const Color(0xFF0D9488),
           onChanged: (val) => setState(() => isDarkMode = val),
         ),
-        const Divider(height: 30),
+      ],
+    );
+  }
 
-        // --- 3. زمن تصفية العمليات والأرشيف ---
-        const Text('⏱️ زمن تصفية العمليات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
-        const SizedBox(height: 8),
-        const Text(
+  // --- 3. قسم زمن تصفية العمليات والأرشيف ---
+  Widget _buildArchiveInfoSection() {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('⏱️ زمن تصفية العمليات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+        SizedBox(height: 8),
+        Text(
           '• المبيعات النقدية: تصفية يومية يدوية (مع احتفاظ الحوصلة بكل العمليات الأبدية).\n'
           '• الموردين: أرشيف تلقائي لآخر 60 يوماً (شهرين).\n'
           '• الكريدي والديون: أرشيف تلقائي لآخر 70 يوماً.',
           style: TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
         ),
-        const Divider(height: 30),
+      ],
+    );
+  }
 
-        // --- 4. إعدادات الحوصلة المالية ---
+  // --- 4. قسم إعدادات الحوصلة المالية ---
+  Widget _buildFinancialSettingsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const Text('📊 إعدادات الحوصلة المالية', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
         const SizedBox(height: 5),
         SwitchListTile(
@@ -124,9 +178,15 @@ class _SettingsTabState extends State<SettingsTab> {
             ),
           ),
         ],
-        const Divider(height: 30),
+      ],
+    );
+  }
 
-        // --- 5. إدارة البيانات والأرشيف (مسح الأرشيف) ---
+  // --- 5. قسم إدارة البيانات والأرشيف ---
+  Widget _buildDataManagementSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const Text('🗑️ إدارة البيانات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 16)),
         const SizedBox(height: 5),
         ListTile(
@@ -134,76 +194,84 @@ class _SettingsTabState extends State<SettingsTab> {
           subtitle: const Text('تحذير: سيؤدي لحذف الأرشيف نهائياً وتأثره على الحوصلة الشهرية والسنوية'),
           trailing: IconButton(
             icon: const Icon(Icons.delete_forever, color: Colors.red),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('تحذير خطير!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                  content: const Text('هل أنت متأكد تماماً من رغبتك في مسح أرشيف المبيعات القديم؟ هذه الخطوة لا يمكن التراجع عنها وستقوم بتصفير الحسابات القديمة من الحوصلة.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx), 
-                      child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                      onPressed: () async {
-                        if (Hive.isBoxOpen('archivedSalesBox')) {
-                          await Hive.box('archivedSalesBox').clear();
-                        } else {
-                          var box = await Hive.openBox('archivedSalesBox');
-                          await box.clear();
-                        }
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('تم محو أرشيف المبيعات بنجاح')),
-                        );
-                      },
-                      child: const Text('تأكيد المحو', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              );
-            },
+            onPressed: () => _showClearArchiveDialog(context),
           ),
-        ),
-        const Divider(height: 30),
-
-        // --- 6. حول التطبيق ---
-        const Center(
-          child: Column(
-            children: [
-              Text('ℹ️ حول التطبيق', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
-              SizedBox(height: 6),
-              Text('Stitten Business - ERP الإصدار: 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 13)),
-              SizedBox(height: 2),
-              Text('المطور: جلولي مصطفى', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 14)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 40),
-
-        // زر حفظ الإعدادات
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0D9488),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          onPressed: () {
-            widget.onSave(
-              isSecurityEnabled,
-              pinCtrl.text,
-              isDarkMode,
-              isManualStartDate,
-              dateCtrl.text,
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('تم حفظ الإعدادات وتطبيق التغييرات بنجاح')),
-            );
-          },
-          child: const Text('حفظ الإعدادات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
         ),
       ],
+    );
+  }
+
+  // دالة عرض رسالة التأكيد لمسح الأرشيف
+  void _showClearArchiveDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تحذير خطير!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content: const Text('هل أنت متأكد تماماً من رغبتك في مسح أرشيف المبيعات القديم؟ هذه الخطوة لا يمكن التراجع عنها وستقوم بتصفير الحسابات القديمة من الحوصلة.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              if (Hive.isBoxOpen('archivedSalesBox')) {
+                await Hive.box('archivedSalesBox').clear();
+              } else {
+                var box = await Hive.openBox('archivedSalesBox');
+                await box.clear();
+              }
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('تم محو أرشيف المبيعات بنجاح')),
+              );
+            },
+            child: const Text('تأكيد المحو', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 6. قسم حول التطبيق ---
+  Widget _buildAboutSection() {
+    return const Center(
+      child: Column(
+        children: [
+          Text('ℹ️ حول التطبيق', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+          SizedBox(height: 6),
+          Text('Stitten Business - ERP الإصدار: 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 13)),
+          SizedBox(height: 2),
+          Text('المطور: جلولي مصطفى', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  // --- زر حفظ الإعدادات ---
+  Widget _buildSaveButton(BuildContext context) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF0D9488),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+      onPressed: () {
+        widget.onSave(
+          isSecurityEnabled,
+          pinCtrl.text,
+          isDarkMode,
+          isManualStartDate,
+          dateCtrl.text,
+        );
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حفظ الإعدادات وتطبيق التغييرات بنجاح')),
+        );
+      },
+      child: const Text('حفظ الإعدادات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
     );
   }
 }
