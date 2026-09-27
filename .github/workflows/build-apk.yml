@@ -3,43 +3,40 @@ name: Build Android APK
 on:
   push:
     branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # تحديث إلى v4
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      # تحديث إلى v4
-      - name: Set up Java
+      - name: Set up Java Development Kit (JDK)
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Flutter
+      - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
-      - name: Create Flutter Android project files
-        run: flutter create --project-name sttiten_bisness . --org com.stitten.stores --platforms=android
-
-      - name: Install dependencies
+      - name: Get Dependencies
         run: flutter pub get
 
-      - name: Build APK
-        run: flutter build apk --release
+      - name: Create Android Project Files
+        run: flutter create . --org com.stitten.stores --platforms=android
 
-      # تحديث إلى v4 لحل الخطأ
-      - name: Upload APK Artifact
+      - name: Build APK (Release & Optimized)
+        run: flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/app/outputs/symbols
+
+      - name: Upload APK Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: release-apks
+          path: build/app/outputs/flutter-apk/*.apk
           
