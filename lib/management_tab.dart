@@ -12,11 +12,10 @@ class _ManagementTabState extends State<ManagementTab> {
   bool isManualStartDate = false;
   String manualStartDateStr = "2026-01-01";
 
-  // متغيرات البحث والفلترة لكل تبويب
   String salesSearchQuery = "";
   String suppliersSearchQuery = "";
   String creditSearchQuery = "";
-  String creditTypeFilter = "الكل"; // الكل، زبون، موظف
+  String creditTypeFilter = "الكل";
 
   void showDeleteConfirmation(BuildContext context, VoidCallback onConfirm) {
     showDialog(
@@ -123,13 +122,12 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  // دالة تصفية مبيعات اليوم ونقلها للأرشيف الخاص (مع حماية الحوصلة وعدم تأثرها)
   void _archiveDailySales(Box salesBox) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('تصفية وأرشفة مبيعات اليوم', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
-        content: const Text('هل تريد تصفية قائمة المبيعات الحالية للبدء من جديد ونقلها لقسم الأرشيف؟ (ملاحظة: الحوصلة الشهرية والسنوية ستتذكر كل هذه العمليات ولن تتأثر أبداً بالتصفية).'),
+        content: const Text('هل تريد تصفية قائمة المبيعات للبدء من جديد؟ (ملاحظة: الحوصلة الشهرية والسنوية ستتذكر كل هذه العمليات ولن تأثر أبداً).'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
@@ -411,7 +409,7 @@ class _ManagementTabState extends State<ManagementTab> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('• نظام الأرشيف والذاكرة:\n- المبيعات: تصفية يومية يدوية مع تذكر الحوصلة لكل العمليات.\n- الموردين: أرشيف آخر 60 يوماً.\n- الكريدي: أرشيف آخر 70 يوماً.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const Text('• نظام الأرشيف والذاكرة:\n- المبيعات: تصفية يومية مع الحفاظ على ذاكرة الحوصلة.\n- الموردين: أرشيف آخر 60 يوماً.\n- الكريدي: أرشيف آخر 70 يوماً.', style: TextStyle(color: Colors.grey, fontSize: 13)),
               const Divider(),
               SwitchListTile(
                 title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
@@ -454,7 +452,7 @@ class _ManagementTabState extends State<ManagementTab> {
         Hive.box('suppliersBox').listenable(),
       ]),
       builder: (context, _) {
-        final salesBox = Hive.box('salesBox'); // يحتفظ بذاكرة العمليات كاملة للحوصلة حتى لو تمت التصفية اليومية
+        final salesBox = Hive.box('salesBox');
         final suppliersBox = Hive.box('suppliersBox');
 
         String currentMonth = DateTime.now().toString().substring(0, 7);
@@ -465,26 +463,31 @@ class _ManagementTabState extends State<ManagementTab> {
         double yearlySales = 0.0;
         double yearlyCost = 0.0;
 
+        // حساب المبيعات الحالية
         for (var i = 0; i < salesBox.length; i++) {
           var item = salesBox.getAt(i);
           String date = item['date'] ?? '';
-          if (date.startsWith(currentMonth)) {
-            monthlySales += (item['amount'] ?? 0.0);
-          }
-          if (date.startsWith(currentYear)) {
-            yearlySales += (item['amount'] ?? 0.0);
+          if (date.startsWith(currentMonth)) monthlySales += (item['amount'] ?? 0.0);
+          if (date.startsWith(currentYear)) yearlySales += (item['amount'] ?? 0.0);
+        }
+
+        // حساب مبيعات الأرشيف لكي تتذكر الحوصلة العمليات حتى بعد التصفية اليومية
+        if (Hive.isBoxOpen('archivedSalesBox')) {
+          var archiveBox = Hive.box('archivedSalesBox');
+          for (var i = 0; i < archiveBox.length; i++) {
+            var item = archiveBox.getAt(i);
+            String date = item['date'] ?? '';
+            if (date.startsWith(currentMonth)) monthlySales += (item['amount'] ?? 0.0);
+            if (date.startsWith(currentYear)) yearlySales += (item['amount'] ?? 0.0);
           }
         }
 
+        // حساب تكاليف الموردين
         for (var i = 0; i < suppliersBox.length; i++) {
           var item = suppliersBox.getAt(i);
           String date = item['date'] ?? '';
-          if (date.startsWith(currentMonth)) {
-            monthlyCost += (item['amount'] ?? 0.0);
-          }
-          if (date.startsWith(currentYear)) {
-            yearlyCost += (item['amount'] ?? 0.0);
-          }
+          if (date.startsWith(currentMonth)) monthlyCost += (item['amount'] ?? 0.0);
+          if (date.startsWith(currentYear)) yearlyCost += (item['amount'] ?? 0.0);
         }
 
         double monthlyNet = monthlySales - monthlyCost;
@@ -503,41 +506,33 @@ class _ManagementTabState extends State<ManagementTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.between,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('الحوصلة المالية (مبيعات - توريد)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D9488))),
+                  const Text('الحوصلة المالية الشاملة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0D9488))),
                   IconButton(icon: const Icon(Icons.settings, size: 20, color: Colors.grey), onPressed: _showSettingsDialog)
                 ],
               ),
               const Divider(),
               const SizedBox(height: 5),
               Row(
-                mainAxisAlignment: MainAxisAlignment.between,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('الشهر الحالي:', style: TextStyle(fontWeight: FontWeight.bold)),
                   Text(
                     'ربح/خسارة: ${monthlyNet.toStringAsFixed(2)} دج',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: monthlyNet >= 0 ? Colors.green[700] : Colors.red[700],
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: monthlyNet >= 0 ? Colors.green[700] : Colors.red[700]),
                   ),
                 ],
               ),
               Text('المبيعات: $monthlySales دج | التوريد: $monthlyCost دج', style: const TextStyle(color: Colors.grey, fontSize: 12)),
               const SizedBox(height: 12),
               Row(
-                mainAxisAlignment: MainAxisAlignment.between,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('السنة الحالية:', style: TextStyle(fontWeight: FontWeight.bold)),
                   Text(
                     'ربح/خسارة: ${yearlyNet.toStringAsFixed(2)} دج',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: yearlyNet >= 0 ? Colors.green[700] : Colors.red[700],
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: yearlyNet >= 0 ? Colors.green[700] : Colors.red[700]),
                   ),
                 ],
               ),
@@ -571,7 +566,7 @@ class _ManagementTabState extends State<ManagementTab> {
         ),
         body: TabBarView(
           children: [
-            // --- تبويب المبيعات (مع زر التصفية والأرشفة اليومية) ---
+            // --- تبويب المبيعات (مع زر التصفية اليومية) ---
             Column(
               children: [
                 buildFinancialSummaryCard(),
@@ -641,7 +636,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الموردين (مع البحث وأرشيف 60 يوماً) ---
+            // --- تبويب الموردين ---
             Column(
               children: [
                 Padding(
@@ -720,7 +715,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الكريدي (مع البحث، فلترة النوع، وأرشيف 70 يوماً) ---
+            // --- تبويب الكريدي ---
             Column(
               children: [
                 Padding(
