@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class StatisticsTab extends StatefulWidget {
   const StatisticsTab({Key? key}) : super(key: key);
@@ -10,80 +11,155 @@ class StatisticsTab extends StatefulWidget {
 }
 
 class _StatisticsTabState extends State<StatisticsTab> {
-  double totalCustomersDebt = 0;
-  double totalSuppliersDebt = 0;
-  int employeeCount = 0;
+  DateTime? treasuryStartDate;
+  
+  double todaySales = 0;
+  double monthlySales = 0;
+  double annualSales = 0;
+  
+  double monthlyCosts = 0;
+  double annualCosts = 0;
+
+  List<String> alerts = [];
 
   @override
   void initState() {
     super.initState();
-    _loadStats();
+    _calculateTreasury();
   }
 
-  Future<void> _loadStats() async {
+  Future<void> _calculateTreasury() async {
     final prefs = await SharedPreferences.getInstance();
     
-    final customersData = prefs.getStringList('customers_list') ?? [];
-    double custDebt = 0;
-    int empCount = 0;
-    for (var item in customersData) {
-      final Map<String, dynamic> data = jsonDecode(item);
-      custDebt += (data['amount'] ?? 0.0);
-      if (data['isEmp'] == true) empCount++;
+    List suppliers = (prefs.getStringList('suppliers_v2') ?? []).map((e) => jsonDecode(e)).toList();
+    List sales = (prefs.getStringList('sales_v2') ?? []).map((e) => jsonDecode(e)).toList();
+    List customers = (prefs.getStringList('customers_v2') ?? []).map((e) => jsonDecode(e)).toList();
+
+    DateTime now = DateTime.now();
+    double tSales = 0, mSales = 0, aSales = 0;
+    double mCosts = 0, aCosts = 0;
+    List<String> tempAlerts = [];
+
+    // تنبيهات الموظفين (حل يوم التخليص بعد مرور شهر)
+    for (var cust in customers) {
+      if (cust['isEmployee'] == true && cust['startDate'] != null) {
+        DateTime sDate = DateTime.parse(cust['startDate']);
+        if (now.difference(sDate).inDays >= 30) {
+          tempAlerts.add('حان موعد تخليص الموظف: ${cust['name']}');
+        }
+      }
     }
 
-    final suppliersData = prefs.getStringList('suppliers_list') ?? [];
-    double supDebt = 0;
-    for (var item in suppliersData) {
-      final Map<String, dynamic> data = jsonDecode(item);
-      supDebt += (data['debt'] ?? 0.0);
+    // حساب المبيعات النقدية
+    for (var sale in sales) {
+      DateTime sDate = DateTime.parse(sale['date']);
+      if (sDate.year == now.year && sDate.month == now.month && sDate.day == now.day) tSales += sale['amount'];
+      
+      if (treasuryStartDate != null) {
+        if (sDate.isAfter(treasuryStartDate!) && sDate.isBefore(treasuryStartDate!.add(const Duration(days: 30)))) mSales += sale['amount'];
+        if (sDate.isAfter(treasuryStartDate!) && sDate.isBefore(treasuryStartDate!.add(const Duration(days: 365)))) aSales += sale['amount'];
+      }
+    }
+    
+    // حساب مبيعات الكريدي (الحوصلة اليومية تشملها)
+    for(var cust in customers) {
+      for(var pur in cust['purchases']) {
+        DateTime pDate = DateTime.parse(pur['date']);
+        if (pDate.year == now.year && pDate.month == now.month && pDate.day == now.day) tSales += pur['amount'];
+        
+        if (treasuryStartDate != null) {
+          if (pDate.isAfter(treasuryStartDate!) && pDate.isBefore(treasuryStartDate!.add(const Duration(days: 30)))) mSales += pur['amount'];
+          if (pDate.isAfter(treasuryStartDate!) && pDate.isBefore(treasuryStartDate!.add(const Duration(days: 365)))) aSales += pur['amount'];
+        }
+      }
+    }
+
+    // حساب التكاليف من الموردين (الفواتير الكلية)
+    if (treasuryStartDate != null) {
+      for (var sup in suppliers) {
+        for (var inv in sup['invoices']) {
+          DateTime iDate = DateTime.parse(inv['date']);
+          if (iDate.isAfter(treasuryStartDate!) && iDate.isBefore(treasuryStartDate!.add(const Duration(days: 30)))) mCosts += inv['total'];
+          if (iDate.isAfter(treasuryStartDate!) && iDate.isBefore(treasuryStartDate!.add(const Duration(days: 365)))) aCosts += inv['total'];
+        }
+      }
     }
 
     setState(() {
-      totalCustomersDebt = custDebt;
-      totalSuppliersDebt = supDebt;
-      employeeCount = empCount;
+      todaySales = tSales;
+      monthlySales = mSales;
+      annualSales = aSales;
+      monthlyCosts = mCosts;
+      annualCosts = aCosts;
+      alerts = tempAlerts;
     });
+  }
+
+  Widget _buildResultRow(String label, double salesAmount, double costsAmount, bool isAnnual) {
+    if (treasuryStartDate == null) return Text('$label: لم تحن بعد', style: const TextStyle(fontSize: 16));
+    
+    DateTime targetDate = isAnnual ? treasuryStartDate!.add(const Duration(days: 365)) : treasuryStartDate!.add(const Duration(days: 30));
+    if (DateTime.now().isBefore(targetDate)) {
+      return Text('$label: لم تحن بعد (تكتمل في ${DateFormat('yyyy-MM-dd').format(targetDate)})', style: const TextStyle(fontSize: 16));
+    }
+
+    double result = salesAmount - costsAmount;
+    Color rColor = result > 0 ? Colors.green : Colors.red;
+    String rText = result > 0 ? 'ربح' : 'خسارة / صفر';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$label المبيعات: $salesAmount دج | التكلفة: $costsAmount دج'),
+        Text('النتيجة: $result دج ($rText)', style: TextStyle(color: rColor, fontWeight: FontWeight.bold, fontSize: 18)),
+        const Divider()
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('لوحة الإحصائيات المتقدمة'), centerTitle: true),
+      appBar: AppBar(title: const Text('الصندوق والتنبيهات')),
       body: RefreshIndicator(
-        onRefresh: _loadStats,
+        onRefresh: _calculateTreasury,
         child: ListView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16),
           children: [
-            if (employeeCount > 0)
+            if (alerts.isNotEmpty)
               Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade200)),
-                child: Text(
-                  'تنبيه: لديك حسابات لـ $employeeCount موظف تحتاج للمراجعة وتخليص الشهر!',
-                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
+                padding: const EdgeInsets.all(10),
+                color: Colors.red.shade100,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('تنبيهات هامة:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    ...alerts.map((a) => Text('- $a', style: const TextStyle(color: Colors.red)))
+                  ],
                 ),
               ),
-            const Text('ملخص الأداء المالي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            const Text('حوصلة اليوم (نقداً + كريدي):', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('$todaySales دج', style: const TextStyle(fontSize: 22, color: Colors.blue, fontWeight: FontWeight.bold)),
+            const Divider(thickness: 2),
             const SizedBox(height: 10),
-            _buildStatCard('إجمالي ديون الزبائن والكريدي', '$totalCustomersDebt دج', Colors.blue),
-            _buildStatCard('إجمالي ديون الموردين', '$totalSuppliersDebt دج', Colors.orange),
-            _buildStatCard('صافي الحركة المالية', '${totalCustomersDebt - totalSuppliersDebt} دج', Colors.green),
+            const Text('قسم الأرباح والخسائر:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ListTile(
+              title: Text(treasuryStartDate == null ? 'تحديد أول يوم للشهر' : 'تاريخ البداية: ${DateFormat('yyyy-MM-dd').format(treasuryStartDate!)}'),
+              trailing: const Icon(Icons.calendar_month),
+              onTap: () async {
+                DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030));
+                if (picked != null) {
+                  setState(() => treasuryStartDate = picked);
+                  _calculateTreasury();
+                }
+              },
+            ),
+            const SizedBox(height: 10),
+            _buildResultRow('الحوصلة الشهرية', monthlySales, monthlyCosts, false),
+            _buildResultRow('الحوصلة السنوية (12 شهر)', annualSales, annualCosts, true),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, Color color) {
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        trailing: Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
       ),
     );
   }
