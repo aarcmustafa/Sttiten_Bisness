@@ -15,31 +15,42 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
   List<Map<String, dynamic>> suppliers = [];
   List<Map<String, dynamic>> sales = [];
   List<Map<String, dynamic>> customers = [];
+  List<Map<String, dynamic>> archiveList = [];
 
   String searchQuery = "";
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadAllData();
   }
 
   Future<void> _loadAllData() async {
     final prefs = await SharedPreferences.getInstance();
+    DateTime twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
+
+    // تحميل الموردين وتنظيف القديم
     List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? [])
         .map((e) => jsonDecode(e) as Map<String, dynamic>)
         .toList();
-    DateTime twoMonthsAgo = DateTime.now().subtract(const Duration(days: 60));
     for (var sup in loadedSuppliers) {
       List invoices = sup['invoices'] ?? [];
       invoices.removeWhere((inv) => DateTime.parse(inv['date']).isBefore(twoMonthsAgo));
       sup['invoices'] = invoices;
     }
     suppliers = loadedSuppliers;
+
     sales = (prefs.getStringList('sales_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     customers = (prefs.getStringList('customers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
-    
+
+    // تحميل الأرشيف وتنظيف ما تجاوز شهرين تلقائياً
+    List<Map<String, dynamic>> loadedArchive = (prefs.getStringList('archive_v2') ?? [])
+        .map((e) => jsonDecode(e) as Map<String, dynamic>)
+        .toList();
+    loadedArchive.removeWhere((item) => DateTime.parse(item['date']).isBefore(twoMonthsAgo));
+    archiveList = loadedArchive;
+
     _saveAllData();
     setState(() {});
   }
@@ -49,7 +60,17 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     await prefs.setStringList('suppliers_v2', suppliers.map((e) => jsonEncode(e)).toList());
     await prefs.setStringList('sales_v2', sales.map((e) => jsonEncode(e)).toList());
     await prefs.setStringList('customers_v2', customers.map((e) => jsonEncode(e)).toList());
+    await prefs.setStringList('archive_v2', archiveList.map((e) => jsonEncode(e)).toList());
     setState(() {});
+  }
+
+  void _addArchiveEntry(String title, String details, double amount) {
+    archiveList.insert(0, {
+      'title': title,
+      'details': details,
+      'amount': amount,
+      'date': DateTime.now().toIso8601String(),
+    });
   }
 
   void _addSupplier() {
@@ -59,13 +80,13 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('إضافة مورد جديد', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('إضافة مورد جديد', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم المورد', prefixIcon: Icon(Icons.person))),
+            TextField(controller: nameCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'اسم المورد', prefixIcon: Icon(Icons.person))),
             const SizedBox(height: 10),
-            TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
+            TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
           ],
         ),
         actions: [
@@ -101,9 +122,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
             height: MediaQuery.of(context).size.height * 0.8,
             child: Column(
               children: [
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10))),
                 const SizedBox(height: 15),
-                Text('فواتير المورد: ${suppliers[index]['name']}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('فواتير المورد: ${suppliers[index]['name']}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 5),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -123,18 +144,21 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                       showDialog(
                         context: context,
                         builder: (dCtx) => AlertDialog(
-                          title: const Text('إضافة فاتورة جديدة'),
+                          title: const Text('إضافة فاتورة جديدة', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
                           content: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('التاريخ آلياً: ${DateFormat('yyyy-MM-dd').format(DateTime.now())}', style: const TextStyle(color: Colors.grey)),
-                              TextField(controller: totalCtrl, decoration: const InputDecoration(labelText: 'القيمة الكلية للفاتورة (دج)'), keyboardType: TextInputType.number),
-                              TextField(controller: paidCtrl, decoration: const InputDecoration(labelText: 'المبلغ المدفوع (دج)'), keyboardType: TextInputType.number),
+                              Text('التاريخ آلياً: ${DateFormat('yyyy-MM-dd').format(DateTime.now())}', style: const TextStyle(color: Colors.black54)),
+                              const SizedBox(height: 10),
+                              TextField(controller: totalCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'القيمة الكلية للفاتورة (دج)'), keyboardType: TextInputType.number),
+                              const SizedBox(height: 10),
+                              TextField(controller: paidCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'المبلغ المدفوع (دج)'), keyboardType: TextInputType.number),
                             ],
                           ),
                           actions: [
                             TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
                             ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
                               onPressed: () {
                                 double total = double.tryParse(totalCtrl.text) ?? 0;
                                 double paid = double.tryParse(paidCtrl.text) ?? 0;
@@ -146,10 +170,11 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                     'remaining': total - paid,
                                   });
                                 });
+                                _addArchiveEntry('فاتورة مورد', 'المورد: ${suppliers[index]['name']}', total);
                                 _saveAllData();
                                 Navigator.pop(dCtx);
                               },
-                              child: const Text('حفظ الفاتورة'),
+                              child: const Text('حفظ الفاتورة', style: TextStyle(color: Colors.white)),
                             ),
                           ],
                         ),
@@ -169,8 +194,8 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                         color: isPaid ? Colors.green.shade50 : Colors.red.shade50,
                         margin: const EdgeInsets.only(bottom: 10),
                         child: ListTile(
-                          title: Text('تاريخ الفاتورة: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(inv['date']))}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('الإجمالي: ${inv['total']} دج | المدفوع: ${inv['paid']} دج\nالباقي ديناً: ${inv['remaining']} دج'),
+                          title: Text('تاريخ الفاتورة: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(inv['date']))}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                          subtitle: Text('الإجمالي: ${inv['total']} دج | المدفوع: ${inv['paid']} دج\nالباقي ديناً: ${inv['remaining']} دج', style: const TextStyle(color: Colors.black87)),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.red),
                             onPressed: () {
@@ -196,9 +221,10 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('مبيعات اليوم النقدي (${DateFormat('yyyy-MM-dd').format(DateTime.now())})'),
+        title: Text('مبيعات اليوم النقدي (${DateFormat('yyyy-MM-dd').format(DateTime.now())})', style: const TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
         content: TextField(
           controller: amountCtrl,
+          style: const TextStyle(color: Colors.black87),
           decoration: const InputDecoration(labelText: 'المبلغ النقدي المباشر (دج)', prefixIcon: Icon(Icons.money)),
           keyboardType: TextInputType.number,
         ),
@@ -207,7 +233,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
             onPressed: () {
-              sales.add({'date': DateTime.now().toIso8601String(), 'amount': double.tryParse(amountCtrl.text) ?? 0});
+              double amount = double.tryParse(amountCtrl.text) ?? 0;
+              sales.add({'date': DateTime.now().toIso8601String(), 'amount': amount});
+              _addArchiveEntry('بيع نقدي', 'مبيعات يومية مباشرة', amount);
               _saveAllData();
               Navigator.pop(ctx);
             },
@@ -228,12 +256,13 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(isEmployee ? 'إضافة موظف (حساب كريدي)' : 'إضافة زبون كريدي آخر', style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(isEmployee ? 'إضافة موظف (حساب كريدي)' : 'إضافة زبون كريدي آخر', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person))),
-              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
+              TextField(controller: nameCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person))),
+              const SizedBox(height: 10),
+              TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
               if (isEmployee) ...[
                 const SizedBox(height: 15),
                 OutlinedButton.icon(
@@ -290,9 +319,9 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
             height: MediaQuery.of(context).size.height * 0.8,
             child: Column(
               children: [
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10))),
                 const SizedBox(height: 15),
-                Text(customers[index]['name'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                Text(customers[index]['name'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 5),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -312,19 +341,22 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                           showDialog(
                             context: context,
                             builder: (dCtx) => AlertDialog(
-                              title: const Text('إضافة عملية شراء بالكريدي'),
-                              content: TextField(controller: pCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ (دج)')),
+                              title: const Text('إضافة عملية شراء بالكريدي', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
+                              content: TextField(controller: pCtrl, style: const TextStyle(color: Colors.black87), keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ (دج)')),
                               actions: [
                                 TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
                                 ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
                                   onPressed: () {
+                                    double amount = double.tryParse(pCtrl.text) ?? 0;
                                     setModalState(() {
-                                      customers[index]['purchases'].add({'date': DateTime.now().toIso8601String(), 'amount': double.tryParse(pCtrl.text) ?? 0});
+                                      customers[index]['purchases'].add({'date': DateTime.now().toIso8601String(), 'amount': amount});
                                     });
+                                    _addArchiveEntry('إضافة كريدي', 'الزبون: ${customers[index]['name']}', amount);
                                     _saveAllData();
                                     Navigator.pop(dCtx);
                                   },
-                                  child: const Text('حفظ'),
+                                  child: const Text('حفظ', style: TextStyle(color: Colors.white)),
                                 )
                               ],
                             ),
@@ -344,27 +376,30 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                             showDialog(
                               context: context,
                               builder: (dCtx) => AlertDialog(
-                                title: const Text('تسديد وحوصلة الشهر'),
+                                title: const Text('تسديد وحوصلة الشهر', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
                                 content: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text('مجموع الكريدي المستحق: $totalOwed دج'),
-                                    TextField(controller: payCtrl, decoration: const InputDecoration(labelText: 'المبلغ المدفوع (دج)'), keyboardType: TextInputType.number),
+                                    Text('مجموع الكريدي المستحق: $totalOwed دج', style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 10),
+                                    TextField(controller: payCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'المبلغ المدفوع (دج)'), keyboardType: TextInputType.number),
                                   ],
                                 ),
                                 actions: [
                                   TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
                                   ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
                                     onPressed: () {
                                       double paid = double.tryParse(payCtrl.text) ?? 0;
                                       setModalState(() {
                                         customers[index]['purchases'] = [];
                                         customers[index]['rolledOverDebt'] = totalOwed - paid;
                                       });
+                                      _addArchiveEntry('تسديد كريدي موظف', 'الموظف: ${customers[index]['name']} (تم دفع: $paid دج)', paid);
                                       _saveAllData();
                                       Navigator.pop(dCtx);
                                     },
-                                    child: const Text('حفظ وترحيل المتبقي'),
+                                    child: const Text('حفظ وترحيل المتبقي', style: TextStyle(color: Colors.white)),
                                   ),
                                 ],
                               ),
@@ -381,8 +416,8 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     itemCount: customers[index]['purchases'].length,
                     itemBuilder: (c, i) => Card(
                       child: ListTile(
-                        title: Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(customers[index]['purchases'][i]['date']))),
-                        trailing: Text('${customers[index]['purchases'][i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        title: Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(customers[index]['purchases'][i]['date'])), style: const TextStyle(color: Colors.black87)),
+                        trailing: Text('${customers[index]['purchases'][i]['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
                       ),
                     ),
                   ),
@@ -406,11 +441,13 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
           controller: _tabController,
           indicatorColor: Colors.white,
           indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          isScrollable: true,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           tabs: const [
             Tab(text: 'الموردين'),
             Tab(text: 'المبيعات النقدية'),
             Tab(text: 'حسابات الكريدي'),
+            Tab(text: 'الأرشيف'),
           ],
         ),
       ),
@@ -420,16 +457,14 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
             padding: const EdgeInsets.all(12.0),
             child: TextField(
               onChanged: (val) => setState(() => searchQuery = val),
+              style: const TextStyle(color: Colors.black87),
               decoration: InputDecoration(
                 hintText: 'بحث سريع بالاسم...',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF1E3A8A)),
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
               ),
             ),
           ),
@@ -437,7 +472,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
             child: TabBarView(
               controller: _tabController,
               children: [
-                // الموردين
+                // 1. الموردين
                 ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: filteredSuppliers.length,
@@ -447,14 +482,14 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                         backgroundColor: const Color(0xFF1E3A8A).withOpacity(0.1),
                         child: const Icon(Icons.business, color: Color(0xFF1E3A8A)),
                       ),
-                      title: Text(filteredSuppliers[i]['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(filteredSuppliers[i]['phone']),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      title: Text(filteredSuppliers[i]['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                      subtitle: Text(filteredSuppliers[i]['phone'], style: const TextStyle(color: Colors.black54)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                       onTap: () => _manageSupplierInvoices(suppliers.indexOf(filteredSuppliers[i])),
                     ),
                   ),
                 ),
-                // المبيعات النقدية
+                // 2. المبيعات النقدية
                 Column(
                   children: [
                     Padding(
@@ -462,10 +497,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                       child: SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0D9488),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), padding: const EdgeInsets.symmetric(vertical: 12)),
                           onPressed: _addDailySale,
                           icon: const Icon(Icons.add_card, color: Colors.white),
                           label: const Text('تسجيل مبيعات نقدية جديدة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -479,7 +511,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                         itemBuilder: (ctx, i) => Card(
                           child: ListTile(
                             leading: const Icon(Icons.monetization_on_rounded, color: Colors.green, size: 30),
-                            title: Text(DateFormat('yyyy-MM-dd').format(DateTime.parse(sales[i]['date']))),
+                            title: Text(DateFormat('yyyy-MM-dd').format(DateTime.parse(sales[i]['date'])), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
                             trailing: Text('${sales[i]['amount']} دج', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
                           ),
                         ),
@@ -487,24 +519,14 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     )
                   ],
                 ),
-                // الكريدي
+                // 3. الكريدي
                 Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-                          onPressed: () => _addCustomer(true),
-                          icon: const Icon(Icons.badge, color: Colors.white),
-                          label: const Text('إضافة موظف', style: TextStyle(color: Colors.white)),
-                        ),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
-                          onPressed: () => _addCustomer(false),
-                          icon: const Icon(Icons.person_add, color: Colors.white),
-                          label: const Text('إضافة زبون كريدي', style: TextStyle(color: Colors.white)),
-                        ),
+                        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)), onPressed: () => _addCustomer(true), icon: const Icon(Icons.badge, color: Colors.white), label: const Text('إضافة موظف', style: TextStyle(color: Colors.white))),
+                        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)), onPressed: () => _addCustomer(false), icon: const Icon(Icons.person_add, color: Colors.white), label: const Text('إضافة زبون كريدي', style: TextStyle(color: Colors.white))),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -518,22 +540,55 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: cust['isEmployee'] ? Colors.orange.shade100 : Colors.blue.shade100,
-                                child: Icon(
-                                  cust['isEmployee'] ? Icons.badge : Icons.person,
-                                  color: cust['isEmployee'] ? Colors.orange.shade800 : Colors.blue.shade800,
-                                ),
+                                child: Icon(cust['isEmployee'] ? Icons.badge : Icons.person, color: cust['isEmployee'] ? Colors.orange.shade800 : Colors.blue.shade800),
                               ),
-                              title: Text(cust['name'] + (cust['isEmployee'] ? ' (موظف)' : ''), style: const TextStyle(fontWeight: FontWeight.bold)),
+                              title: Text(cust['name'] + (cust['isEmployee'] ? ' (موظف)' : ''), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
                               subtitle: cust['isEmployee'] && cust['startDate'] != null 
-                                  ? Text('بداية الشهر: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(cust['startDate']))}') 
-                                  : Text(cust['phone']),
-                              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                                  ? Text('بداية الشهر: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(cust['startDate']))}', style: const TextStyle(color: Colors.black54)) 
+                                  : Text(cust['phone'], style: const TextStyle(color: Colors.black54)),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                               onTap: () => _manageCustomer(customers.indexOf(cust)),
                             ),
                           );
                         },
                       ),
                     )
+                  ],
+                ),
+                // 4. قسم الأرشيف الذكي (يمسح تلقائياً كل شهرين)
+                Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200)),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.auto_delete_rounded, color: Color(0xFF1E3A8A)),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('أرشيف العمليات المكتملة (يتم حذف السجلات القديمة أكثر من شهرين تلقائياً)', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold, fontSize: 13))),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: archiveList.isEmpty
+                          ? const Center(child: Text('لا توجد عمليات مؤرشفة حالياً', style: TextStyle(color: Colors.grey, fontSize: 16)))
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              itemCount: archiveList.length,
+                              itemBuilder: (ctx, i) {
+                                var item = archiveList[i];
+                                return Card(
+                                  child: ListTile(
+                                    leading: const CircleAvatar(backgroundColor: Color(0xFFF1F5F9), child: Icon(Icons.history, color: Color(0xFF1E3A8A))),
+                                    title: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                                    subtitle: Text('${item['details']}\n${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(item['date']))}', style: const TextStyle(color: Colors.black54)),
+                                    trailing: Text('${item['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E3A8A))),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
                   ],
                 ),
               ],
@@ -553,4 +608,3 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     );
   }
 }
-
