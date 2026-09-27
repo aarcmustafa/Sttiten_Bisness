@@ -100,72 +100,126 @@ class _StatisticsTabState extends State<StatisticsTab> {
     });
   }
 
-  Widget _buildResultRow(String label, double salesAmount, double costsAmount, bool isAnnual) {
-    if (treasuryStartDate == null) return Text('$label: لم تحن بعد', style: const TextStyle(fontSize: 16));
+  Widget _buildResultCard(String label, double salesAmount, double costsAmount, bool isAnnual) {
+    if (treasuryStartDate == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text('$label: اختر تاريخ البداية لحساب الأرباح', style: const TextStyle(color: Colors.grey)),
+        ),
+      );
+    }
     
     DateTime targetDate = isAnnual 
         ? DateTime(treasuryStartDate!.year + 1, treasuryStartDate!.month, treasuryStartDate!.day)
         : DateTime(treasuryStartDate!.year, treasuryStartDate!.month + 1, treasuryStartDate!.day);
         
     if (DateTime.now().isBefore(targetDate)) {
-      return Text('$label: لم تحن بعد (تكتمل في ${DateFormat('yyyy-MM-dd').format(targetDate)})', style: const TextStyle(fontSize: 16));
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text('$label: قيد الحساب (تكتمل الرزنامة في ${DateFormat('yyyy-MM-dd').format(targetDate)})', style: const TextStyle(color: Colors.grey)),
+        ),
+      );
     }
 
     double result = salesAmount - costsAmount;
-    Color rColor = result > 0 ? Colors.green : Colors.red;
-    String rText = result > 0 ? 'ربح' : 'خسارة / صفر';
+    bool isProfit = result > 0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('$label المبيعات: $salesAmount دج | التكلفة: $costsAmount دج'),
-        Text('النتيجة: $result دج ($rText)', style: TextStyle(color: rColor, fontWeight: FontWeight.bold, fontSize: 18)),
-        const Divider()
-      ],
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('المبيعات: $salesAmount دج', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                Text('التكاليف: $costsAmount دج', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const Divider(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('النتيجة الصافية:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('${result.abs()} دج (${isProfit ? "ربح صافي" : "خسارة"})', 
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isProfit ? Colors.green.shade700 : Colors.red.shade700)),
+              ],
+            )
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('الصندوق والتنبيهات')),
+      appBar: AppBar(title: const Text('الصندوق والإحصائيات')),
       body: RefreshIndicator(
         onRefresh: _calculateTreasury,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (alerts.isNotEmpty)
+            if (alerts.isNotEmpty) ...[
               Container(
-                padding: const EdgeInsets.all(10),
-                color: Colors.red.shade100,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.red.shade200)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('تنبيهات هامة:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                    ...alerts.map((a) => Text('- $a', style: const TextStyle(color: Colors.red)))
+                    Row(children: [Icon(Icons.warning_amber_rounded, color: Colors.red.shade700), const SizedBox(width: 8), Text('تنبيهات استحقاق الموظفين', style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.bold, fontSize: 16))]),
+                    const SizedBox(height: 10),
+                    ...alerts.map((a) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $a', style: TextStyle(color: Colors.red.shade800)))),
                   ],
                 ),
               ),
-            const SizedBox(height: 20),
-            const Text('حوصلة اليوم (نقداً + كريدي):', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text('$todaySales دج', style: const TextStyle(fontSize: 22, color: Colors.blue, fontWeight: FontWeight.bold)),
-            const Divider(thickness: 2),
-            const SizedBox(height: 10),
-            const Text('قسم الأرباح والخسائر:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ListTile(
-              title: Text(treasuryStartDate == null ? 'تحديد أول يوم للشهر' : 'تاريخ البداية: ${DateFormat('yyyy-MM-dd').format(treasuryStartDate!)}'),
-              trailing: const Icon(Icons.calendar_month),
-              onTap: () async {
-                DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030));
-                if (picked != null) {
-                  setState(() => treasuryStartDate = picked);
-                  _calculateTreasury();
-                }
-              },
+              const SizedBox(height: 16),
+            ],
+            
+            // بطاقة مبيعات اليوم
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)]),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('حوصلة مبيعات اليوم (نقداً + كريدي)', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Text('$todaySales دج', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ),
+            const SizedBox(height: 20),
+            
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.calendar_month, color: Color(0xFF1E3A8A)),
+                title: Text(treasuryStartDate == null ? 'حدد تاريخ بداية الصندوق المحاسبي' : 'تاريخ بداية الصندوق: ${DateFormat('yyyy-MM-dd').format(treasuryStartDate!)}'),
+                trailing: const Icon(Icons.edit),
+                onTap: () async {
+                  DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030));
+                  if (picked != null) {
+                    setState(() => treasuryStartDate = picked);
+                    _calculateTreasury();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 15),
+            _buildResultCard('الحوصلة الشهرية الصافية', monthlySales, monthlyCosts, false),
             const SizedBox(height: 10),
-            _buildResultRow('الحوصلة الشهرية', monthlySales, monthlyCosts, false),
-            _buildResultRow('الحوصلة السنوية (12 شهر)', annualSales, annualCosts, true),
+            _buildResultCard('الحوصلة السنوية الصافية', annualSales, annualCosts, true),
           ],
         ),
       ),
