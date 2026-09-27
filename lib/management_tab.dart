@@ -101,7 +101,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), padding: const EdgeInsets.symmetric(vertical: 12)),
-                  icon: const Icon(Icons.add_receipt, color: Colors.white),
+                  icon: const Icon(Icons.receipt_long, color: Colors.white),
                   label: const Text('إضافة فاتورة جديدة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   onPressed: () {
                     final totalCtrl = TextEditingController();
@@ -360,7 +360,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
             child: TabBarView(
               controller: _tabController,
               children: [
-                // قائمة الموردين
                 ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: filteredSuppliers.length,
@@ -374,7 +373,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     ),
                   ),
                 ),
-                // المبيعات النقدية
                 Column(
                   children: [
                     Padding(
@@ -382,4 +380,5 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                       child: SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), padding: const EdgeI
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), padding: const EdgeInsets.symmetric(vertical: 12)),
+                          onPressed: 
