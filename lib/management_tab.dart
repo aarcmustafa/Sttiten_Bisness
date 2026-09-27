@@ -12,6 +12,11 @@ class _ManagementTabState extends State<ManagementTab> {
   bool isManualStartDate = false;
   String manualStartDateStr = "2026-01-01";
 
+  // نظام الحماية معطل افتراضياً من البداية
+  bool isSecurityEnabled = false;
+  String securityPin = "1234";
+
+  // متغيرات البحث والفلترة
   String salesSearchQuery = "";
   String suppliersSearchQuery = "";
   String creditSearchQuery = "";
@@ -400,36 +405,96 @@ class _ManagementTabState extends State<ManagementTab> {
 
   void _showSettingsDialog() {
     final dateCtrl = TextEditingController(text: manualStartDateStr);
+    final pinCtrl = TextEditingController(text: securityPin);
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('إعدادات الأرشيف والحوصلة', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('• نظام الأرشيف والذاكرة:\n- المبيعات: تصفية يومية مع الحفاظ على ذاكرة الحوصلة.\n- الموردين: أرشيف آخر 60 يوماً.\n- الكريدي: أرشيف آخر 70 يوماً.', style: TextStyle(color: Colors.grey, fontSize: 13)),
-              const Divider(),
-              SwitchListTile(
-                title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
-                subtitle: Text(isManualStartDate ? 'مفعل (تاريخ مخصص)' : 'تلقائي (حسب الشهر والسنة)'),
-                value: isManualStartDate,
-                activeColor: const Color(0xFF0D9488),
-                onChanged: (val) {
-                  setDialogState(() => isManualStartDate = val);
-                  setState(() {});
-                },
+          title: const Text('إعدادات التطبيق والأرشيف', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('🔒 نظام الحماية والأمان', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
+                  const SizedBox(height: 5),
+                  SwitchListTile(
+                    title: const Text('تفعيل قفل الحماية برمز سري'),
+                    subtitle: Text(isSecurityEnabled ? 'الحماية مفعلة' : 'غير مفعلة'),
+                    value: isSecurityEnabled,
+                    activeColor: const Color(0xFF0D9488),
+                    onChanged: (val) {
+                      setDialogState(() => isSecurityEnabled = val);
+                      setState(() {});
+                    },
+                  ),
+                  if (isSecurityEnabled) ...[
+                    TextField(
+                      controller: pinCtrl,
+                      keyboardType: TextInputType.number,
+                      obscureText: true,
+                      maxLength: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'إعداد/تغيير الرمز السري (4 أرقام)',
+                        prefixIcon: Icon(Icons.lock, color: Color(0xFF0D9488)),
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (val) => securityPin = val,
+                    ),
+                  ],
+                  const Divider(height: 25),
+                  const Text('⏱️ زمن تصفية العمليات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
+                  const SizedBox(height: 5),
+                  const Text(
+                    '• المبيعات النقدية: تصفية يومية يدوية (مع احتفاظ الحوصلة بكل العمليات الأبدية).\n'
+                    '• الموردين: أرشيف تلقائي لآخر 60 يوماً (شهرين).\n'
+                    '• الكريدي والديون: أرشيف تلقائي لآخر 70 يوماً.',
+                    style: TextStyle(color: Colors.black87, fontSize: 12.5, height: 1.4),
+                  ),
+                  const Divider(height: 25),
+                  const Text('📊 إعدادات الحوصلة المالية', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
+                  SwitchListTile(
+                    title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
+                    subtitle: Text(isManualStartDate ? 'مفعل ($manualStartDateStr)' : 'تلقائي (حسب الشهر الحالي)'),
+                    value: isManualStartDate,
+                    activeColor: const Color(0xFF0D9488),
+                    onChanged: (val) {
+                      setDialogState(() => isManualStartDate = val);
+                      setState(() {});
+                    },
+                  ),
+                  if (isManualStartDate) ...[
+                    const SizedBox(height: 5),
+                    TextField(
+                      controller: dateCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'تاريخ البداية (YYYY-MM-DD)', 
+                        prefixIcon: Icon(Icons.date_range, color: Color(0xFF0D9488)),
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (val) => manualStartDateStr = val,
+                    ),
+                  ],
+                  const Divider(height: 25),
+                  const Center(
+                    child: Column(
+                      children: [
+                        Text('ℹ️ حول التطبيق', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 15)),
+                        SizedBox(height: 4),
+                        Text('Stitten Business - ERP الإصدار: 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        SizedBox(height: 2),
+                        Text('المطور: جلولي مصطفى', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              if (isManualStartDate) ...[
-                const SizedBox(height: 10),
-                TextField(
-                  controller: dateCtrl,
-                  decoration: const InputDecoration(labelText: 'تاريخ البداية (YYYY-MM-DD)', prefixIcon: Icon(Icons.date_range)),
-                  onChanged: (val) => manualStartDateStr = val,
-                ),
-              ]
-            ],
+            ),
           ),
           actions: [
             ElevatedButton(
@@ -437,8 +502,11 @@ class _ManagementTabState extends State<ManagementTab> {
               onPressed: () {
                 setState(() {});
                 Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم حفظ الإعدادات بنجاح')),
+                );
               },
-              child: const Text('تم', style: TextStyle(color: Colors.white)),
+              child: const Text('حفظ وإغلاق', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -463,7 +531,6 @@ class _ManagementTabState extends State<ManagementTab> {
         double yearlySales = 0.0;
         double yearlyCost = 0.0;
 
-        // حساب المبيعات الحالية
         for (var i = 0; i < salesBox.length; i++) {
           var item = salesBox.getAt(i);
           String date = item['date'] ?? '';
@@ -471,7 +538,6 @@ class _ManagementTabState extends State<ManagementTab> {
           if (date.startsWith(currentYear)) yearlySales += (item['amount'] ?? 0.0);
         }
 
-        // حساب مبيعات الأرشيف لكي تتذكر الحوصلة العمليات حتى بعد التصفية اليومية
         if (Hive.isBoxOpen('archivedSalesBox')) {
           var archiveBox = Hive.box('archivedSalesBox');
           for (var i = 0; i < archiveBox.length; i++) {
@@ -482,7 +548,6 @@ class _ManagementTabState extends State<ManagementTab> {
           }
         }
 
-        // حساب تكاليف الموردين
         for (var i = 0; i < suppliersBox.length; i++) {
           var item = suppliersBox.getAt(i);
           String date = item['date'] ?? '';
@@ -566,7 +631,7 @@ class _ManagementTabState extends State<ManagementTab> {
         ),
         body: TabBarView(
           children: [
-            // --- تبويب المبيعات (مع زر التصفية اليومية) ---
+            // --- تبويب المبيعات (مع زر التصفية والأرشفة اليومية) ---
             Column(
               children: [
                 buildFinancialSummaryCard(),
@@ -636,7 +701,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الموردين ---
+            // --- تبويب الموردين (مع البحث وأرشيف 60 يوماً) ---
             Column(
               children: [
                 Padding(
@@ -715,7 +780,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- تبويب الكريدي ---
+            // --- تبويب الكريدي (مع البحث، فلترة النوع، وأرشيف 70 يوماً) ---
             Column(
               children: [
                 Padding(
