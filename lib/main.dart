@@ -566,4 +566,4 @@ class CreditScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      ElevatedButton
+                      Expanded(
