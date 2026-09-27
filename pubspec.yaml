@@ -1,8 +1,8 @@
-name: stitten_bisness
-description: "A new Flutter project for managing business, debts, and suppliers."
-publish_to: 'none'
+name: stitten_business
+description: "A local-first Flutter shop management ERP and financial summary tool."
+publish_to: 'none' # Prevent accidental publishing to pub.dev
 
-version: 2.0.0+2
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -10,16 +10,26 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
-  shared_preferences: ^2.3.2
-  intl: ^0.20.3
+  
+  # قاعدة البيانات المحلية السريعة
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  
+  # أدوات التحليل البرمجي
+  flutter_lints: ^5.0.0
+  
+  # أدوات توليد الكود المرتبطة بـ Hive
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.8
 
 flutter:
   uses-material-design: true
+
+  # يمكنك إضافة الأيقونات أو الخطوط هنا لاحقاً إذا احتجت لذلك
+  # assets:
+  #   - assets/
   
