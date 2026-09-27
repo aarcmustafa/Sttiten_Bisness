@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'settings_tab.dart'; // متوافق مع صفحة الإعدادات الجديدة
+import 'settings_tab.dart';
 
 class ManagementTab extends StatefulWidget {
   const ManagementTab({Key? key}) : super(key: key);
@@ -152,26 +152,27 @@ class _ManagementTabState extends State<ManagementTab> {
       ),
     );
   }
-    void _addSupplierDialog() {
-    final nameCtrl = TextEditingController();
+    void _addSupplierDialog({String? prefilledName}) {
+    final nameCtrl = TextEditingController(text: prefilledName ?? '');
     final amountCtrl = TextEditingController();
     final _formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('إضافة فاتورة مورد / للمورد', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+        title: Text(prefilledName == null ? 'إضافة فاتورة مورد جديد' : 'إضافة عملية جديدة للمورد: $prefilledName', style: const TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold, fontSize: 16)),
         content: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextFormField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'اسم المورد', prefixIcon: Icon(Icons.person, color: Color(0xFF0D9488))),
-                validator: (value) => (value == null || value.trim().isEmpty) ? 'اسم المورد مطلوب' : null,
-              ),
-              const SizedBox(height: 10),
+              if (prefilledName == null)
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'اسم المورد', prefixIcon: Icon(Icons.person, color: Color(0xFF0D9488))),
+                  validator: (value) => (value == null || value.trim().isEmpty) ? 'اسم المورد مطلوب' : null,
+                ),
+              if (prefilledName == null) const SizedBox(height: 10),
               TextFormField(
                 controller: amountCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -192,7 +193,7 @@ class _ManagementTabState extends State<ManagementTab> {
             onPressed: () {
               if (_formKey.currentState!.validate()) {
                 Hive.box('suppliersBox').add({
-                  'name': nameCtrl.text.trim(),
+                  'name': prefilledName ?? nameCtrl.text.trim(),
                   'amount': double.parse(amountCtrl.text),
                   'date': DateTime.now().toIso8601String(),
                 });
@@ -207,63 +208,68 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  void _editSupplierDialog(int index, Map item) {
-    final nameCtrl = TextEditingController(text: item['name']);
-    final amountCtrl = TextEditingController(text: item['amount'].toString());
-    final _formKey = GlobalKey<FormState>();
-
+  void _showSupplierDetailsDialog(BuildContext context, String supplierName, List<Map> supplierTransactions) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تعديل بيانات المورد / التوريد', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
-        content: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'اسم المورد', prefixIcon: Icon(Icons.person, color: Color(0xFF0D9488))),
-                validator: (value) => (value == null || value.trim().isEmpty) ? 'اسم المورد مطلوب' : null,
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'قيمة التوريد/الفاتورة (دج)', prefixIcon: Icon(Icons.receipt, color: Color(0xFF0D9488))),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'المبلغ مطلوب';
-                  if (double.tryParse(value) == null || double.parse(value) < 0) return 'أدخل مبلغاً صالحاً';
-                  return null;
-                },
-              ),
-            ],
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: Text('سجل عمليات المورد: $supplierName', style: const TextStyle(color: Color(0xFF0D9488), fontSize: 16, fontWeight: FontWeight.bold))),
+            IconButton(
+              icon: const Icon(Icons.add_box, color: Color(0xFF0D9488)),
+              tooltip: 'إضافة عملية جديدة لهذا المورد',
+              onPressed: () {
+                Navigator.pop(ctx);
+                _addSupplierDialog(prefilledName: supplierName);
+              },
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: supplierTransactions.length,
+            itemBuilder: (context, idx) {
+              final tx = supplierTransactions[idx];
+              return Card(
+                elevation: 1,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  title: Text('المبلغ: ${tx['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('التاريخ: ${tx['date'].toString().substring(0, 16)}'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    onPressed: () {
+                      showDeleteConfirmation(context, () {
+                        var box = Hive.box('suppliersBox');
+                        for (int i = 0; i < box.length; i++) {
+                          var item = box.getAt(i);
+                          if (item['name'] == tx['name'] && item['date'] == tx['date'] && item['amount'] == tx['amount']) {
+                            box.deleteAt(i);
+                            break;
+                          }
+                        }
+                        Navigator.pop(ctx);
+                        setState(() {});
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                Hive.box('suppliersBox').putAt(index, {
-                  'name': nameCtrl.text.trim(),
-                  'amount': double.parse(amountCtrl.text),
-                  'date': item['date'],
-                });
-                setState(() {});
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('تحديث', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
         ],
       ),
     );
   }
-    void _addCreditDialog() {
-    String type = 'زبون';
-    final nameCtrl = TextEditingController();
+    void _addCreditDialog({String? prefilledName, String? prefilledType}) {
+    String type = prefilledType ?? 'زبون';
+    final nameCtrl = TextEditingController(text: prefilledName ?? '');
     final amountCtrl = TextEditingController();
     final _formKey = GlobalKey<FormState>();
 
@@ -271,32 +277,34 @@ class _ManagementTabState extends State<ManagementTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('تسجيل حساب كريدي جديد', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
+          title: Text(prefilledName == null ? 'تسجيل حساب كريدي جديد' : 'إضافة دين جديد لـ: $prefilledName', style: const TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold, fontSize: 16)),
           content: Form(
             key: _formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<String>(
-                  value: type,
-                  items: const [
-                    DropdownMenuItem(value: 'زبون', child: Text('زبون عادي')),
-                    DropdownMenuItem(value: 'موظف', child: Text('موظف')),
-                  ],
-                  onChanged: (val) => setDialogState(() => type = val!),
-                  decoration: const InputDecoration(labelText: 'نوع الحساب'),
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'الاسم الكريم', prefixIcon: Icon(Icons.badge, color: Color(0xFF0D9488))),
-                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الاسم مطلوب' : null,
-                ),
-                const SizedBox(height: 10),
+                if (prefilledName == null)
+                  DropdownButtonFormField<String>(
+                    value: type,
+                    items: const [
+                      DropdownMenuItem(value: 'زبون', child: Text('زبون عادي')),
+                      DropdownMenuItem(value: 'موظف', child: Text('موظف')),
+                    ],
+                    onChanged: (val) => setDialogState(() => type = val!),
+                    decoration: const InputDecoration(labelText: 'نوع الحساب'),
+                  ),
+                if (prefilledName == null) const SizedBox(height: 10),
+                if (prefilledName == null)
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(labelText: 'الاسم الكريم', prefixIcon: Icon(Icons.badge, color: Color(0xFF0D9488))),
+                    validator: (value) => (value == null || value.trim().isEmpty) ? 'الاسم مطلوب' : null,
+                  ),
+                if (prefilledName == null) const SizedBox(height: 10),
                 TextFormField(
                   controller: amountCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'مبلغ الكريدي الإجمالي (دج)', prefixIcon: Icon(Icons.money_off, color: Color(0xFF0D9488))),
+                  decoration: const InputDecoration(labelText: 'مبلغ الدين/الكريدي (دج)', prefixIcon: Icon(Icons.money_off, color: Color(0xFF0D9488))),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) return 'المبلغ مطلوب';
                     if (double.tryParse(value) == null || double.parse(value) <= 0) return 'أدخل رقماً صالحاً أكبر من الصفر';
@@ -314,7 +322,7 @@ class _ManagementTabState extends State<ManagementTab> {
                 if (_formKey.currentState!.validate()) {
                   Hive.box('customersBox').add({
                     'type': type,
-                    'name': nameCtrl.text.trim(),
+                    'name': prefilledName ?? nameCtrl.text.trim(),
                     'amount': double.parse(amountCtrl.text),
                     'date': DateTime.now().toIso8601String(),
                   });
@@ -330,71 +338,62 @@ class _ManagementTabState extends State<ManagementTab> {
     );
   }
 
-  void _editCreditDialog(int index, Map item) {
-    String type = item['type'] ?? 'زبون';
-    final nameCtrl = TextEditingController(text: item['name']);
-    final amountCtrl = TextEditingController(text: item['amount'].toString());
-    final _formKey = GlobalKey<FormState>();
-
+  void _showCustomerDetailsDialog(BuildContext context, String customerName, String customerType, List<Map> customerTransactions) {
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('تعديل حساب الكريدي', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
-          content: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: type,
-                  items: const [
-                    DropdownMenuItem(value: 'زبون', child: Text('زبون عادي')),
-                    DropdownMenuItem(value: 'موظف', child: Text('موظف')),
-                  ],
-                  onChanged: (val) => setDialogState(() => type = val!),
-                  decoration: const InputDecoration(labelText: 'نوع الحساب'),
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'الاسم الكريم', prefixIcon: Icon(Icons.badge, color: Color(0xFF0D9488))),
-                  validator: (value) => (value == null || value.trim().isEmpty) ? 'الاسم مطلوب' : null,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: amountCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'مبلغ الكريدي الإجمالي (دج)', prefixIcon: Icon(Icons.money_off, color: Color(0xFF0D9488))),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) return 'المبلغ مطلوب';
-                    if (double.tryParse(value) == null || double.parse(value) <= 0) return 'أدخل رقماً صالحاً أكبر من الصفر';
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: Text('سجل ديون: $customerName ($customerType)', style: const TextStyle(color: Color(0xFF0D9488), fontSize: 15, fontWeight: FontWeight.bold))),
+            IconButton(
+              icon: const Icon(Icons.add_box, color: Color(0xFF0D9488)),
+              tooltip: 'إضافة دين جديد لهذا الشخص',
               onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  Hive.box('customersBox').putAt(index, {
-                    'type': type,
-                    'name': nameCtrl.text.trim(),
-                    'amount': double.parse(amountCtrl.text),
-                    'date': item['date'],
-                  });
-                  setState(() {});
-                  Navigator.pop(ctx);
-                }
+                Navigator.pop(ctx);
+                _addCreditDialog(prefilledName: customerName, prefilledType: customerType);
               },
-              child: const Text('تحديث', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: customerTransactions.length,
+            itemBuilder: (context, idx) {
+              final tx = customerTransactions[idx];
+              return Card(
+                elevation: 1,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  title: Text('المبلغ: ${tx['amount']} دج', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('التاريخ: ${tx['date'].toString().substring(0, 16)}'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    onPressed: () {
+                      showDeleteConfirmation(context, () {
+                        var box = Hive.box('customersBox');
+                        for (int i = 0; i < box.length; i++) {
+                          var item = box.getAt(i);
+                          if (item['name'] == tx['name'] && item['date'] == tx['date'] && item['amount'] == tx['amount']) {
+                            box.deleteAt(i);
+                            break;
+                          }
+                        }
+                        Navigator.pop(ctx);
+                        setState(() {});
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+        ],
       ),
     );
   }
@@ -613,7 +612,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- 2. تبويب الموردين (مع أرشيف 60 يوماً) ---
+            // --- 2. تبويب الموردين (مجمع حسب اسم المورد) ---
             Column(
               children: [
                 Padding(
@@ -622,7 +621,7 @@ class _ManagementTabState extends State<ManagementTab> {
                     children: [
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
-                        onPressed: _addSupplierDialog,
+                        onPressed: () => _addSupplierDialog(),
                         icon: const Icon(Icons.add, color: Colors.white),
                         label: const Text('إضافة فاتورة مورد / توريد جديد', style: TextStyle(color: Colors.white)),
                       ),
@@ -643,43 +642,42 @@ class _ManagementTabState extends State<ManagementTab> {
                   child: ValueListenableBuilder(
                     valueListenable: Hive.box('suppliersBox').listenable(),
                     builder: (context, Box box, _) {
-                      List<int> validIndices = [];
+                      Map<String, double> supplierTotals = {};
+                      Map<String, List<Map>> supplierItems = {};
+
                       for (int i = 0; i < box.length; i++) {
-                        var item = box.getAt(i);
+                        var item = Map<String, dynamic>.from(box.getAt(i));
+                        String name = item['name'] ?? 'غير معروف';
+                        double amount = (item['amount'] ?? 0.0).toDouble();
                         DateTime itemDate = DateTime.parse(item['date'] ?? now.toIso8601String());
-                        String name = item['name'] ?? '';
+
                         if (itemDate.isAfter(sixtyDaysAgo) && name.contains(suppliersSearchQuery)) {
-                          validIndices.add(i);
+                          supplierTotals[name] = (supplierTotals[name] ?? 0.0) + amount;
+                          supplierItems.putIfAbsent(name, () => []).add(item);
                         }
                       }
 
-                      if (validIndices.isEmpty) {
+                      List<String> uniqueSuppliers = supplierTotals.keys.toList();
+
+                      if (uniqueSuppliers.isEmpty) {
                         return const Center(child: Text('لا توجد نتائج مطابقة في أرشيف الموردين (60 يوم)', style: TextStyle(color: Colors.grey)));
                       }
+
                       return ListView.builder(
-                        itemCount: validIndices.length,
+                        itemCount: uniqueSuppliers.length,
                         itemBuilder: (context, idx) {
-                          int index = validIndices[idx];
-                          final item = box.getAt(index);
+                          String name = uniqueSuppliers[idx];
+                          double totalAmount = supplierTotals[name]!;
+                          List<Map> txs = supplierItems[name]!;
+
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             child: ListTile(
                               leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.store, color: Colors.white)),
-                              title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text('قيمة التوريد: ${item['amount']} دج | التاريخ: ${item['date'].toString().substring(0, 10)}'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.blue),
-                                    onPressed: () => _editSupplierDialog(index, item),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () => showDeleteConfirmation(context, () => box.deleteAt(index)),
-                                  ),
-                                ],
-                              ),
+                              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              subtitle: Text('إجمالي التوريدات: $totalAmount دج (${txs.length} عمليات)'),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Color(0xFF0D9488)),
+                              onTap: () => _showSupplierDetailsDialog(context, name, txs),
                             ),
                           );
                         },
@@ -690,7 +688,7 @@ class _ManagementTabState extends State<ManagementTab> {
               ],
             ),
 
-            // --- 3. تبويب الكريدي (مع أرشيف 70 يوماً والفلترة) ---
+            // --- 3. تبويب الكريدي (مجمع حسب اسم الزبون/الموظف) ---
             Column(
               children: [
                 Padding(
@@ -699,7 +697,7 @@ class _ManagementTabState extends State<ManagementTab> {
                     children: [
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488), minimumSize: const Size.fromHeight(45)),
-                        onPressed: _addCreditDialog,
+                        onPressed: () => _addCreditDialog(),
                         icon: const Icon(Icons.add, color: Colors.white),
                         label: const Text('تسجيل كريدي جديد', style: TextStyle(color: Colors.white)),
                       ),
@@ -741,50 +739,52 @@ class _ManagementTabState extends State<ManagementTab> {
                   child: ValueListenableBuilder(
                     valueListenable: Hive.box('customersBox').listenable(),
                     builder: (context, Box box, _) {
-                      List<int> validIndices = [];
+                      Map<String, double> customerTotals = {};
+                      Map<String, String> customerTypes = {};
+                      Map<String, List<Map>> customerItems = {};
+
                       for (int i = 0; i < box.length; i++) {
-                        var item = box.getAt(i);
-                        DateTime itemDate = DateTime.parse(item['date'] ?? now.toIso8601String());
-                        String name = item['name'] ?? '';
+                        var item = Map<String, dynamic>.from(box.getAt(i));
+                        String name = item['name'] ?? 'غير معروف';
                         String type = item['type'] ?? 'زبون';
+                        double amount = (item['amount'] ?? 0.0).toDouble();
+                        DateTime itemDate = DateTime.parse(item['date'] ?? now.toIso8601String());
 
                         bool matchesType = (creditTypeFilter == 'الكل' || type == creditTypeFilter);
                         bool matchesSearch = name.contains(creditSearchQuery);
+
                         if (itemDate.isAfter(seventyDaysAgo) && matchesType && matchesSearch) {
-                          validIndices.add(i);
+                          customerTotals[name] = (customerTotals[name] ?? 0.0) + amount;
+                          customerTypes[name] = type;
+                          customerItems.putIfAbsent(name, () => []).add(item);
                         }
                       }
 
-                      if (validIndices.isEmpty) {
+                      List<String> uniqueCustomers = customerTotals.keys.toList();
+
+                      if (uniqueCustomers.isEmpty) {
                         return const Center(child: Text('لا توجد سجلات كريدي مطابقة في أرشيف 70 يوماً', style: TextStyle(color: Colors.grey)));
                       }
+
                       return ListView.builder(
-                        itemCount: validIndices.length,
+                        itemCount: uniqueCustomers.length,
                         itemBuilder: (context, idx) {
-                          int index = validIndices[idx];
-                          final item = box.getAt(index);
+                          String name = uniqueCustomers[idx];
+                          double totalAmount = customerTotals[name]!;
+                          String type = customerTypes[name]!;
+                          List<Map> txs = customerItems[name]!;
+
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: item['type'] == 'موظف' ? Colors.orange : Colors.indigo,
-                                child: Icon(item['type'] == 'موظف' ? Icons.badge : Icons.person, color: Colors.white),
+                                backgroundColor: type == 'موظف' ? Colors.orange : Colors.indigo,
+                                child: Icon(type == 'موظف' ? Icons.badge : Icons.person, color: Colors.white),
                               ),
-                              title: Text('${item['name']} (${item['type']})', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text('المبلغ: ${item['amount']} دج'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.blue),
-                                    onPressed: () => _editCreditDialog(index, item),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () => showDeleteConfirmation(context, () => box.deleteAt(index)),
-                                  ),
-                                ],
-                              ),
+                              title: Text('$name ($type)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              subtitle: Text('إجمالي الديون: $totalAmount دج (${txs.length} عمليات)'),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Color(0xFF0D9488)),
+                              onTap: () => _showCustomerDetailsDialog(context, name, type, txs),
                             ),
                           );
                         },
