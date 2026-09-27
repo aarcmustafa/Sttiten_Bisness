@@ -16,7 +16,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
   List<Map<String, dynamic>> sales = [];
   List<Map<String, dynamic>> customers = [];
   
-  // قوائم الأرشيف منفصلة حسب الأقسام
   List<Map<String, dynamic>> archiveSuppliers = [];
   List<Map<String, dynamic>> archiveSales = [];
   List<Map<String, dynamic>> archiveCustomers = [];
@@ -36,7 +35,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     DateTime sixtyDaysAgo = DateTime.now().subtract(const Duration(days: 60));
     DateTime seventyDaysAgo = DateTime.now().subtract(const Duration(days: 70));
 
-    // تحميل وتصفية الموردين وفواتيرهم
     List<Map<String, dynamic>> loadedSuppliers = (prefs.getStringList('suppliers_v2') ?? [])
         .map((e) => jsonDecode(e) as Map<String, dynamic>)
         .toList();
@@ -50,7 +48,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     sales = (prefs.getStringList('sales_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
     customers = (prefs.getStringList('customers_v2') ?? []).map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
 
-    // تحميل الأرشيف وتطبيق مدة الحذف (60 يوماً للموردين والمبيعات، 70 يوماً للكريدي)
     archiveSuppliers = (prefs.getStringList('archive_suppliers') ?? [])
         .map((e) => jsonDecode(e) as Map<String, dynamic>)
         .where((item) => DateTime.parse(item['date']).isAfter(sixtyDaysAgo))
@@ -253,7 +250,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
     );
   }
 
-  // إضافة أو تعديل مبيعات نقدية
   void _addOrEditDailySale({Map<String, dynamic>? saleToEdit, int? editIndex}) {
     final amountCtrl = TextEditingController(text: saleToEdit != null ? saleToEdit['amount'].toString() : '');
     showDialog(
@@ -362,7 +358,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
 
           return Container(
             padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 20, left: 16, right: 16),
-            height: MediaQuery.of(context).size.height * 0.8,
+            height: MediaQuery.of(context).size.height * 0.85,
             child: Column(
               children: [
                 Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10))),
@@ -411,51 +407,113 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                         },
                       ),
                     ),
-                    if (customers[index]['isEmployee']) ...[
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
-                          icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-                          label: const Text('حوصلة الشهر', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          onPressed: () {
-                            final payCtrl = TextEditingController();
-                            showDialog(
-                              context: context,
-                              builder: (dCtx) => AlertDialog(
+                    const SizedBox(width: 8),
+                    // زر التصفية المبكرة أو الحوصلة (تلقائي أو يدوي)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+                        icon: const Icon(Icons.payment, color: Colors.white),
+                        label: Text(customers[index]['isEmployee'] ? 'حوصلة/تسديد' : 'تسديد مبكر', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        onPressed: () {
+                          final payCtrl = TextEditingController();
+                          bool isManualFilter = false;
+                          List<bool> selectedPurchases = List.generate((customers[index]['purchases'] as List).length, (_) => false);
+
+                          showDialog(
+                            context: context,
+                            builder: (dCtx) => StatefulBuilder(
+                              builder: (context, setDialogState) => AlertDialog(
                                 backgroundColor: Colors.white,
-                                title: const Text('تسديد وحوصلة الشهر', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold)),
-                                content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text('مجموع الكريدي المستحق: $totalOwed دج', style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 10),
-                                    TextField(controller: payCtrl, style: const TextStyle(color: Colors.black87), decoration: const InputDecoration(labelText: 'المبلغ المدفوع (دج)'), keyboardType: TextInputType.number),
-                                  ],
+                                title: const Text('تسديد وتصفية الديون (قبل الاستحقاق)', style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold, fontSize: 16)),
+                                content: SizedBox(
+                                  width: double.maxFinite,
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('إجمالي الدين الحالي: $totalOwed دج', style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 10),
+                                        SwitchListTile(
+                                          title: const Text('تصفية يدوية (اختيار عمليات محددة)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                          value: isManualFilter,
+                                          activeColor: const Color(0xFF0D9488),
+                                          onChanged: (val) {
+                                            setDialogState(() => isManualFilter = val);
+                                          },
+                                        ),
+                                        const SizedBox(height: 10),
+                                        if (!isManualFilter) ...[
+                                          TextField(
+                                            controller: payCtrl,
+                                            style: const TextStyle(color: Colors.black87),
+                                            decoration: const InputDecoration(labelText: 'المبلغ المدفوع (تصفية آلية جزئية أو كلية) (دج)'),
+                                            keyboardType: TextInputType.number,
+                                          ),
+                                        ] else ...[
+                                          const Text('اختر العمليات المراد تصفيتها وتسديدها:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                          const SizedBox(height: 5),
+                                          SizedBox(
+                                            height: 150,
+                                            child: ListView.builder(
+                                              shrinkWrap: true,
+                                              itemCount: (customers[index]['purchases'] as List).length,
+                                              itemBuilder: (context, pIndex) {
+                                                var p = customers[index]['purchases'][pIndex];
+                                                return CheckboxListTile(
+                                                  dense: true,
+                                                  title: Text('${p['amount']} دج (${p['date'].toString().substring(0, 10)})', style: const TextStyle(fontSize: 13)),
+                                                  value: selectedPurchases[pIndex],
+                                                  onChanged: (val) {
+                                                    setDialogState(() => selectedPurchases[pIndex] = val ?? false);
+                                                  },
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        ]
+                                      ],
+                                    ),
+                                  ),
                                 ),
                                 actions: [
                                   TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
                                     onPressed: () {
-                                      double paid = double.tryParse(payCtrl.text) ?? 0;
                                       setModalState(() {
-                                        customers[index]['purchases'] = [];
-                                        customers[index]['rolledOverDebt'] = totalOwed - paid;
+                                        if (!isManualFilter) {
+                                          double paid = double.tryParse(payCtrl.text) ?? 0;
+                                          customers[index]['purchases'] = [];
+                                          customers[index]['rolledOverDebt'] = totalOwed - paid;
+                                          _addArchiveEntry('customers', 'تسديد مبكر آلي', 'الزبون: ${customers[index]['name']} (مدفوع: $paid دج)', paid);
+                                        } else {
+                                          double manualPaid = 0;
+                                          List remainingPurchases = [];
+                                          List purchasesList = customers[index]['purchases'];
+                                          for (int i = 0; i < purchasesList.length; i++) {
+                                            if (selectedPurchases[i]) {
+                                              manualPaid += (purchasesList[i]['amount'] ?? 0);
+                                            } else {
+                                              remainingPurchases.add(purchasesList[i]);
+                                            }
+                                          }
+                                          customers[index]['purchases'] = remainingPurchases;
+                                          _addArchiveEntry('customers', 'تصفية يدوية مبكرة', 'الزبون: ${customers[index]['name']} (تمت تصفية: $manualPaid دج)', manualPaid);
+                                        }
                                       });
-                                      _addArchiveEntry('customers', 'تسديد كريدي موظف', 'الموظف: ${customers[index]['name']} (تم دفع: $paid دج)', paid);
                                       _saveAllData();
                                       Navigator.pop(dCtx);
                                     },
-                                    child: const Text('حفظ وترحيل المتبقي', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    child: const Text('تأكيد التسديد', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                   ),
                                 ],
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
                       ),
-                    ]
+                    ),
                   ],
                 ),
                 const SizedBox(height: 15),
@@ -699,7 +757,7 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                     )
                   ],
                 ),
-                // 4. الأرشيف (مقسّم حسب الأقسام مع ملاحظة الصلاحية)
+                // 4. الأرشيف مع الملاحظة
                 DefaultTabController(
                   length: 3,
                   child: Column(
@@ -738,7 +796,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                       Expanded(
                         child: TabBarView(
                           children: [
-                            // أرشيف الموردين
                             archiveSuppliers.isEmpty
                                 ? const Center(child: Text('لا توجد عمليات مؤرشفة للموردين', style: TextStyle(color: Colors.grey)))
                                 : ListView.builder(
@@ -751,7 +808,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                       ),
                                     ),
                                   ),
-                            // أرشيف المبيعات
                             archiveSales.isEmpty
                                 ? const Center(child: Text('لا توجد عمليات مؤرشفة للمبيعات', style: TextStyle(color: Colors.grey)))
                                 : ListView.builder(
@@ -764,7 +820,6 @@ class _ManagementTabState extends State<ManagementTab> with SingleTickerProvider
                                       ),
                                     ),
                                   ),
-                            // أرشيف الكريدي
                             archiveCustomers.isEmpty
                                 ? const Center(child: Text('لا توجد عمليات مؤرشفة للكريدي', style: TextStyle(color: Colors.grey)))
                                 : ListView.builder(
