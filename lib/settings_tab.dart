@@ -113,7 +113,6 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 5),
           SwitchListTile(
             title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
-            // تم تصحيح الخطأ هنا باستعمال dateCtrl.text بدلاً من المتغير غير المعرف
             subtitle: Text(isManualStartDate ? 'مفعل (${dateCtrl.text})' : 'تلقائي (حسب الشهر الحالي)'),
             value: isManualStartDate,
             activeColor: const Color(0xFF0D9488),
