@@ -25,7 +25,7 @@ class StittenStoresApp extends StatelessWidget {
           surface: const Color(0xFFF8FAFC),
         ),
         scaffoldBackgroundColor: const Color(0xFFF1F5F9),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           color: Colors.white,
@@ -67,7 +67,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _checkAuthStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    // القفل معطل افتراضياً (false)
     bool isPinEnabled = prefs.getBool('is_pin_enabled') ?? false;
 
     if (!mounted) return;
