@@ -44,7 +44,7 @@ class StittenStoresApp extends StatelessWidget {
 }
 
 // ==========================================
-// 1. MODELS (هيكلة البيانات)
+// MODELS (هيكلة البيانات)
 // ==========================================
 class Supplier {
   String id;
@@ -87,7 +87,7 @@ class Purchase {
 }
 
 // ==========================================
-// 2. STATE MANAGEMENT (المنطق والعمليات)
+// STATE MANAGEMENT (المنطق والعمليات)
 // ==========================================
 class StoreProvider with ChangeNotifier {
   List<Supplier> suppliers = [];
@@ -96,7 +96,7 @@ class StoreProvider with ChangeNotifier {
   
   DateTime boxStartDate = DateTime(DateTime.now().year, DateTime.now().month, 1); 
 
-  // إدارة الموردين (إضافة، تعديل، حذف)
+  // إدارة الموردين
   void addSupplier(String name, String phone) {
     suppliers.add(Supplier(id: DateTime.now().toString(), name: name, phone: phone, startDate: DateTime.now()));
     notifyListeners();
@@ -148,7 +148,7 @@ class StoreProvider with ChangeNotifier {
     return credit;
   }
 
-  // إدارة الزبائن والكريدي (إضافة، تعديل، حذف)
+  // إدارة الزبائن والكريدي
   void addCustomer(String name, String phone, bool isEmployee, DateTime? startDate) {
     customers.add(Customer(id: DateTime.now().toString(), name: name, phone: phone, isEmployee: isEmployee, monthStartDate: startDate));
     notifyListeners();
@@ -253,6 +253,12 @@ class HomeScreen extends StatelessWidget {
             Text('Stitten Stores 2.0'),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => _showAboutDialog(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -298,6 +304,34 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حول التطبيق'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text('Stitten Stores 2.0', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            SizedBox(height: 8),
+            Text('الإصدار: 2.0.0'),
+            SizedBox(height: 8),
+            Text('المصمم والمطور: جلولي مصطفى'),
+            SizedBox(height: 12),
+            Text('تطبيق متكامل لإدارة المتاجر، الموردين، المبيعات، والكريدي بكل احترافية.'),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMenuBtn(BuildContext ctx, String title, Widget screen, IconData icon) {
     return Card(
       elevation: 3,
@@ -318,9 +352,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ------------------------------------------
-// شاشة الموردين (مع البحث والتعديل والحذف)
-// ------------------------------------------
+// شاشة الموردين
 class SuppliersScreen extends StatefulWidget {
   const SuppliersScreen({Key? key}) : super(key: key);
 
@@ -452,9 +484,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   }
 }
 
-// ------------------------------------------
-// تفاصيل المورد (الفواتير)
-// ------------------------------------------
+// تفاصيل المورد
 class SupplierDetailsScreen extends StatelessWidget {
   final Supplier supplier;
   const SupplierDetailsScreen({Key? key, required this.supplier}) : super(key: key);
@@ -539,9 +569,7 @@ class SupplierDetailsScreen extends StatelessWidget {
   }
 }
 
-// ------------------------------------------
 // شاشة المبيعات
-// ------------------------------------------
 class SalesScreen extends StatelessWidget {
   const SalesScreen({Key? key}) : super(key: key);
 
@@ -609,9 +637,7 @@ class SalesScreen extends StatelessWidget {
     ));
   }
 }
-// ------------------------------------------
-// شاشة الكريدي والزبائن (مع البحث والتعديل والحذف)
-// ------------------------------------------
+// شاشة الكريدي والزبائن
 class CreditScreen extends StatefulWidget {
   const CreditScreen({Key? key}) : super(key: key);
 
@@ -868,6 +894,7 @@ class _CreditScreenState extends State<CreditScreen> {
   }
 }
 
+// تفاصيل الزبون
 class CustomerDetailsScreen extends StatelessWidget {
   final Customer customer;
   const CustomerDetailsScreen({Key? key, required this.customer}) : super(key: key);
@@ -985,9 +1012,7 @@ class CustomerDetailsScreen extends StatelessWidget {
   }
 }
 
-// ------------------------------------------
-// شاشة الصندوق والأرباح (مع مؤشرات إحصائية)
-// ------------------------------------------
+// شاشة الصندوق والأرباح
 class BoxScreen extends StatelessWidget {
   const BoxScreen({Key? key}) : super(key: key);
 
