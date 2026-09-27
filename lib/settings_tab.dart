@@ -1,204 +1,216 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
-class SettingsTab extends StatefulWidget {
-  const SettingsTab({Key? key}) : super(key: key);
+class SettingsPage extends StatefulWidget {
+  final bool initialSecurityEnabled;
+  final String initialPin;
+  final bool initialDarkMode;
+  final bool initialManualStartDate;
+  final String initialStartDateStr;
+  final Function(bool, String, bool, bool, String) onSave;
+
+  const SettingsPage({
+    Key? key,
+    required this.initialSecurityEnabled,
+    required this.initialPin,
+    required this.initialDarkMode,
+    required this.initialManualStartDate,
+    required this.initialStartDateStr,
+    required this.onSave,
+  }) : super(key: key);
 
   @override
-  _SettingsTabState createState() => _SettingsTabState();
+  State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsTabState extends State<SettingsTab> {
-  bool _isPinEnabled = false;
-  final TextEditingController _oldPinController = TextEditingController();
-  final TextEditingController _newPinController = TextEditingController();
+class _SettingsPageState extends State<SettingsPage> {
+  late bool isSecurityEnabled;
+  late TextEditingController pinCtrl;
+  late bool isDarkMode;
+  late bool isManualStartDate;
+  late TextEditingController dateCtrl;
 
   @override
   void initState() {
     super.initState();
-    _loadPinSettings();
+    isSecurityEnabled = widget.initialSecurityEnabled;
+    pinCtrl = TextEditingController(text: widget.initialPin);
+    isDarkMode = widget.initialDarkMode;
+    isManualStartDate = widget.initialManualStartDate;
+    dateCtrl = TextEditingController(text: widget.initialStartDateStr);
   }
 
-  Future<void> _loadPinSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _isPinEnabled = prefs.getBool('is_pin_enabled') ?? false;
-    });
-  }
-
-  Future<void> _togglePin(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    if (value) {
-      // إذا أراد تفعيل القفل، نطلب منه تعيين رمز جديد أولاً
-      _showSetPinDialog(prefs);
-    } else {
-      // إيقاف القفل المباشر
-      await prefs.setBool('is_pin_enabled', false);
-      setState(() {
-        _isPinEnabled = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم إلغاء تفعيل قفل التطبيق')),
-      );
-    }
-  }
-
-  void _showSetPinDialog(SharedPreferences prefs) {
-    final pinCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('تعيين رمز قفل جديد', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('أدخل رمز PIN مكون من 4 أرقام لحماية تطبيقك:'),
-            const SizedBox(height: 15),
-            TextField(
-              controller: pinCtrl,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              obscureText: true,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, letterSpacing: 8, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                hintText: '• • • •',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-            onPressed: () async {
-              if (pinCtrl.text.length == 4) {
-                await prefs.setString('app_pin', pinCtrl.text);
-                await prefs.setBool('is_pin_enabled', true);
-                setState(() {
-                  _isPinEnabled = true;
-                });
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم تفعيل قفل التطبيق بنجاح!'), backgroundColor: Colors.green),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('يرجى إدخال 4 أرقام كاملة')),
-                );
-              }
-            },
-            child: const Text('تفعيل القفل', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _changePin() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedPin = prefs.getString('app_pin') ?? "";
-
-    if (_oldPinController.text != savedPin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('الرمز القديم غير صحيح!'), backgroundColor: Colors.red.shade700),
-      );
-      return;
-    }
-    if (_newPinController.text.length != 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرمز الجديد يجب أن يتكون من 4 أرقام!')),
-      );
-      return;
-    }
-
-    await prefs.setString('app_pin', _newPinController.text);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم تغيير رمز الحماية بنجاح!'), backgroundColor: Colors.green),
-    );
-    _oldPinController.clear();
-    _newPinController.clear();
+  @override
+  void dispose() {
+    pinCtrl.dispose();
+    dateCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('الإعدادات والحماية')),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D9488),
+        title: const Text('إعدادات التطبيق والأرشيف', style: TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SwitchListTile(
-                    activeColor: const Color(0xFF1E3A8A),
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('تفعيل قفل التطبيق (PIN)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    subtitle: Text(_isPinEnabled ? 'مفعل (يطلب الرمز عند فتح التطبيق)' : 'معطل (دخول مباشر للتطبيق)'),
-                    value: _isPinEnabled,
-                    onChanged: _togglePin,
-                  ),
-                  if (_isPinEnabled) ...[
-                    const Divider(height: 30),
-                    const Text('تغيير رمز PIN الحالي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _oldPinController,
-                      decoration: const InputDecoration(labelText: 'الرمز القديم', prefixIcon: Icon(Icons.lock_outline)),
-                      obscureText: true,
-                      maxLength: 4,
-                      keyboardType: TextInputType.number,
-                    ),
-                    TextField(
-                      controller: _newPinController,
-                      decoration: const InputDecoration(labelText: 'الرمز الجديد (4 أرقام)', prefixIcon: Icon(Icons.lock_reset)),
-                      obscureText: true,
-                      maxLength: 4,
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-                        onPressed: _changePin,
-                        child: const Text('تحديث الرمز', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ],
+          // --- 1. نظام الحماية والأمان ---
+          const Text('🔒 نظام الحماية والأمان', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+          const SizedBox(height: 5),
+          SwitchListTile(
+            title: const Text('تفعيل قفل الحماية بررمز سري'),
+            subtitle: Text(isSecurityEnabled ? 'الحماية مفعلة' : 'غير مفعلة'),
+            value: isSecurityEnabled,
+            activeColor: const Color(0xFF0D9488),
+            onChanged: (val) => setState(() => isSecurityEnabled = val),
+          ),
+          if (isSecurityEnabled) ...[
+            const SizedBox(height: 5),
+            TextField(
+              controller: pinCtrl,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                labelText: 'إعداد/تغيير الرمز السري (4 أرقام)',
+                prefixIcon: Icon(Icons.lock, color: Color(0xFF0D9488)),
+                isDense: true,
+                border: OutlineInputBorder(),
               ),
+            ),
+          ],
+          const Divider(height: 30),
+
+          // --- 2. المظهر (ليلي أو نهاري) ---
+          const Text('🎨 المظهر والوضعية', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+          const SizedBox(height: 5),
+          SwitchListTile(
+            title: const Text('الوضع الليلي (Dark Mode)'),
+            subtitle: Text(isDarkMode ? 'مفعل (مظهر مظلم مريح للعين)' : 'مفعل (مظهر نهاري ساطع)'),
+            value: isDarkMode,
+            activeColor: const Color(0xFF0D9488),
+            onChanged: (val) => setState(() => isDarkMode = val),
+          ),
+          const Divider(height: 30),
+
+          // --- 3. زمن تصفية العمليات والأرشيف ---
+          const Text('⏱️ زمن تصفية العمليات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+          const SizedBox(height: 8),
+          const Text(
+            '• المبيعات النقدية: تصفية يومية يدوية (مع احتفاظ الحوصلة بكل العمليات الأبدية).\n'
+            '• الموردين: أرشيف تلقائي لآخر 60 يوماً (شهرين).\n'
+            '• الكريدي والديون: أرشيف تلقائي لآخر 70 يوماً.',
+            style: TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
+          ),
+          const Divider(height: 30),
+
+          // --- 4. إعدادات الحوصلة المالية ---
+          const Text('📊 إعدادات الحوصلة المالية', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+          const SizedBox(height: 5),
+          SwitchListTile(
+            title: const Text('تحديد تاريخ بداية يدوي للحوصلة'),
+            // تم تصحيح الخطأ هنا باستعمال dateCtrl.text بدلاً من المتغير غير المعرف
+            subtitle: Text(isManualStartDate ? 'مفعل (${dateCtrl.text})' : 'تلقائي (حسب الشهر الحالي)'),
+            value: isManualStartDate,
+            activeColor: const Color(0xFF0D9488),
+            onChanged: (val) => setState(() => isManualStartDate = val),
+          ),
+          if (isManualStartDate) ...[
+            const SizedBox(height: 5),
+            TextField(
+              controller: dateCtrl,
+              decoration: const InputDecoration(
+                labelText: 'تاريخ البداية (YYYY-MM-DD)', 
+                prefixIcon: Icon(Icons.date_range, color: Color(0xFF0D9488)),
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+          const Divider(height: 30),
+
+          // --- 5. إدارة البيانات والأرشيف (مسح الأرشيف) ---
+          const Text('🗑️ إدارة البيانات والأرشيف', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 16)),
+          const SizedBox(height: 5),
+          ListTile(
+            title: const Text('محو أرشيف المبيعات القديم', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            subtitle: const Text('تحذير: سيؤدي لحذف الأرشيف نهائياً وتأثره على الحوصلة الشهرية والسنوية'),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_forever, color: Colors.red),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('تحذير خطير!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    content: const Text('هل أنت متأكد تماماً من رغبتك في مسح أرشيف المبيعات القديم؟ هذه الخطوة لا يمكن التراجع عنها وستقوم بتصفير الحسابات القديمة من الحوصلة.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx), 
+                        child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        onPressed: () async {
+                          if (Hive.isBoxOpen('archivedSalesBox')) {
+                            await Hive.box('archivedSalesBox').clear();
+                          } else {
+                            var box = await Hive.openBox('archivedSalesBox');
+                            await box.clear();
+                          }
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('تم محو أرشيف المبيعات بنجاح')),
+                          );
+                        },
+                        child: const Text('تأكيد المحو', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
-          const SizedBox(height: 20),
-          Card(
-            color: Colors.blue.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                children: const [
-                  Icon(Icons.storefront_rounded, size: 40, color: Color(0xFF1E3A8A)),
-                  SizedBox(height: 8),
-                  Text('Stitten Stores', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
-                  Text('الإصدار الاحترافي v2.0'),
-                  Divider(height: 20),
-                  Text('تطوير وتصميم البرمجيات:', style: TextStyle(color: Colors.grey)),
-                  SizedBox(height: 4),
-                  Text('جلولي مصطفى', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
-                ],
-              ),
+          const Divider(height: 30),
+
+          // --- 6. حول التطبيق ---
+          const Center(
+            child: Column(
+              children: [
+                Text('ℹ️ حول التطبيق', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D9488), fontSize: 16)),
+                SizedBox(height: 6),
+                Text('Stitten Business - ERP الإصدار: 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                SizedBox(height: 2),
+                Text('المطور: جلولي مصطفى', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 14)),
+              ],
             ),
-          )
+          ),
+          const SizedBox(height: 40),
+
+          // زر حفظ الإعدادات
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0D9488),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            onPressed: () {
+              widget.onSave(
+                isSecurityEnabled,
+                pinCtrl.text,
+                isDarkMode,
+                isManualStartDate,
+                dateCtrl.text,
+              );
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('تم حفظ الإعدادات وتطبيق التغييرات بنجاح')),
+              );
+            },
+            child: const Text('حفظ الإعدادات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
         ],
       ),
     );
